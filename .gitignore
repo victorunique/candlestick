@@ -1,10 +1,59 @@
 # Python-generated files
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
 wheels/
-*.egg-info
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # Virtual environments
+.env
 .venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# DuckDB / Data Lake
+data_lake/
+*.duckdb
+*.duckdb.wal
+
+# PyTorch & RL Models
+*.pt
+*.pth
+*.zip
+ppo_trading_policy*
+
+# macOS
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+
+# Logs
+logs/
+*.log
+
+# Generated protobufs limits
+*_pb2*.py

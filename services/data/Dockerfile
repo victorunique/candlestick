@@ -4,7 +4,7 @@ FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:0.4.15 /uv /bin/uv
 
 WORKDIR /app
-COPY pyproject.toml .
+COPY services/data/pyproject.toml .
 # We can't install dependecies cleanly without lockfile unless we just run uv init
 # So we run uv sync or uv pip install. Let's create a requirements.txt using uv 
 RUN uv pip install --system fastapi uvicorn grpcio grpcio-tools duckdb pandas httpx loguru
