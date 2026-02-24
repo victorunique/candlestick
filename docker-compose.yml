@@ -4,12 +4,13 @@ services:
   redis:
     image: redis:alpine
     ports:
-      - "6379:6379"
+      - "6380:6379"
     restart: always
 
   data-service:
     build: 
-      context: ./services/data
+      context: .
+      dockerfile: services/data/Dockerfile
     volumes:
       - ./data_lake:/app/data
     ports:
@@ -19,14 +20,16 @@ services:
 
   chart-service:
     build:
-      context: ./services/chart
+      context: .
+      dockerfile: services/chart/Dockerfile
     ports:
       - "50052:50052" # gRPC port
     restart: unless-stopped
 
   vision-service:
     build:
-      context: ./services/vision
+      context: .
+      dockerfile: services/vision/Dockerfile
     environment:
       - PYTORCH_ENABLE_MPS_FALLBACK=1
     ports:
@@ -39,7 +42,8 @@ services:
 
   training-service:
     build:
-      context: ./services/training
+      context: .
+      dockerfile: services/training/Dockerfile
     depends_on:
       - redis
       - vision-service
@@ -51,7 +55,8 @@ services:
 
   inference-service:
     build:
-      context: ./services/inference
+      context: .
+      dockerfile: services/inference/Dockerfile
     ports:
       - "8000:8000"   # REST API
     depends_on:
@@ -63,14 +68,16 @@ services:
 
   backtest-service:
     build:
-      context: ./services/backtest
+      context: .
+      dockerfile: services/backtest/Dockerfile
     ports:
       - "8003:8003"   # REST API
     restart: unless-stopped
 
   ui-service:
     build:
-      context: ./services/ui
+      context: .
+      dockerfile: services/ui/Dockerfile
     ports:
       - "8501:8501"
     depends_on:
