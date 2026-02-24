@@ -1,0 +1,8 @@
+[
+  "tests/test_api.py::test_grpc_get_sliding_window",
+  "tests/test_api.py::test_historical_download_api",
+  "tests/test_data_manager.py::test_get_sliding_window",
+  "tests/test_data_manager.py::test_get_sliding_window_not_enough_data",
+  "tests/test_data_manager.py::test_impute_missing_values",
+  "tests/test_data_manager.py::test_ingest_data"
+]

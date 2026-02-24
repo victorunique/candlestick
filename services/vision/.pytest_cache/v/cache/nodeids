@@ -1,0 +1,5 @@
+[
+  "tests/test_api.py::test_extract_features_grpc",
+  "tests/test_vision.py::test_vision_inference_speed",
+  "tests/test_vision.py::test_vision_pipeline_shape_and_device"
+]
