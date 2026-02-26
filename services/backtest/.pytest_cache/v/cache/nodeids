@@ -1,5 +1,0 @@
-[
-  "tests/test_metrics.py::test_calculate_accuracy",
-  "tests/test_metrics.py::test_calculate_max_drawdown",
-  "tests/test_metrics.py::test_calculate_sharpe_ratio"
-]

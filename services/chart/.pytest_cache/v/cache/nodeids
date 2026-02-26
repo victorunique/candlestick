@@ -1,5 +1,0 @@
-[
-  "tests/test_api.py::test_generate_chart_grpc",
-  "tests/test_chart.py::test_chart_generation_shapes",
-  "tests/test_chart.py::test_deterministic_rendering"
-]

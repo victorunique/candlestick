@@ -1,0 +1,11 @@
+[project]
+name = "candlestick"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=3.0.1",
+    "pytest>=9.0.2",
+    "yfinance>=1.2.0",
+]
