@@ -10,6 +10,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack, VecNorm
 
 from src.env_stocktrading import StockTradingEnv
 from src.custom_models import CNN1DFeaturesExtractor
+from src.feature_engineer import INDICATORS
 
 def train_ppo(
     df: pd.DataFrame, 
@@ -25,7 +26,8 @@ def train_ppo(
     stoploss_penalty: float = 0.9,
     profit_loss_ratio: float = 1.5,
     cash_penalty: float = 0.05,
-    episode_length: int = 1000
+    episode_length: int = 1000,
+    seed: int = None
 ):
     os.makedirs(model_dir, exist_ok=True)
     
@@ -46,8 +48,8 @@ def train_ppo(
     }
     
     e_train_gym = DummyVecEnv([lambda: StockTradingEnv(df=df, **env_train_kwargs)])
-    e_train_normalized = VecNormalize(e_train_gym, norm_obs=True, norm_reward=True, clip_obs=10.0)
-    e_train_stacked = VecFrameStack(e_train_normalized, n_stack=window_size)
+    e_train_stacked = VecFrameStack(e_train_gym, n_stack=window_size)
+    e_train_normalized = VecNormalize(e_train_stacked, norm_obs=True, norm_reward=True, clip_obs=10.0)
     
     device = "cpu"  # Force CPU as PPO with small networks is usually faster on CPU
     
@@ -58,6 +60,7 @@ def train_ppo(
         "batch_size": 128,
         "gamma": gamma,
         "device": device,
+        "seed": seed,
     }
     
     POLICY_KWARGS = {
@@ -67,7 +70,7 @@ def train_ppo(
     
     model = PPO(
         "MlpPolicy",
-        env=e_train_stacked,
+        env=e_train_normalized,
         policy_kwargs=POLICY_KWARGS,
         verbose=1,
         **PPO_PARAMS
@@ -94,7 +97,7 @@ def main():
     parser.add_argument("--model_dir", type=str, default="./trained_models", help="Directory to save the trained model")
     parser.add_argument("--model_name", type=str, default="ppo_trading_agent", help="Name of the saved model")
     parser.add_argument("--total_timesteps", type=int, default=200000, help="Total training timesteps")
-    parser.add_argument("--indicators", type=str, nargs="+", default=["macd", "rsi_30", "cci_30", "dx_30"], help="List of indicators used in data")
+    parser.add_argument("--indicators", type=str, nargs="+", default=INDICATORS, help="List of indicators used in data")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     
     # Train Hyperparameters
@@ -103,6 +106,12 @@ def main():
     parser.add_argument("--learning_rate", type=float, default=0.00025)
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--episode_length", type=int, default=1000)
+    
+    # Environment Hyperparameters
+    parser.add_argument("--hmax", type=int, default=100000, help="Max number of shares to trade")
+    parser.add_argument("--stoploss_penalty", type=float, default=0.9, help="Stop-loss penalty ratio")
+    parser.add_argument("--profit_loss_ratio", type=float, default=1.5, help="Profit-to-loss ratio")
+    parser.add_argument("--cash_penalty", type=float, default=0.05, help="Cash penalty proportion")
     
     args = parser.parse_args()
     
@@ -126,7 +135,12 @@ def main():
         ent_coef=args.ent_coef,
         learning_rate=args.learning_rate,
         gamma=args.gamma,
-        episode_length=args.episode_length
+        episode_length=args.episode_length,
+        hmax=args.hmax,
+        stoploss_penalty=args.stoploss_penalty,
+        profit_loss_ratio=args.profit_loss_ratio,
+        cash_penalty=args.cash_penalty,
+        seed=args.seed
     )
     
     print(f"Training finished! Model saved to {os.path.join(args.model_dir, args.model_name)}")

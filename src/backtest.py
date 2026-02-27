@@ -38,34 +38,33 @@ def backtest(
     }
     
     e_trade_gym = DummyVecEnv([lambda: StockTradingEnv(df=df, **env_test_kwargs)])
+    e_trade_stacked = VecFrameStack(e_trade_gym, n_stack=window_size)
     
     vec_normalize_path = f"{model_path}_vecnormalize.pkl"
     if not os.path.exists(vec_normalize_path):
         raise FileNotFoundError(f"Normalization statistics not found at {vec_normalize_path}")
         
-    e_trade_normalized = VecNormalize.load(vec_normalize_path, e_trade_gym)
+    e_trade_normalized = VecNormalize.load(vec_normalize_path, e_trade_stacked)
     e_trade_normalized.training = False
     e_trade_normalized.norm_reward = False
-    
-    e_trade_stacked = VecFrameStack(e_trade_normalized, n_stack=window_size)
     
     print(f"Loading model from {model_path}.zip...")
     trained_ppo = PPO.load(model_path)
     
     print("Running backtest...")
-    obs = e_trade_stacked.reset()
+    obs = e_trade_normalized.reset()
     max_steps = len(df.index.unique()) - 1
     
     for i in range(len(df.index.unique())):
         action, _states = trained_ppo.predict(obs, deterministic=True)
-        obs, rewards, dones, info = e_trade_stacked.step(action)
+        obs, rewards, dones, info = e_trade_normalized.step(action)
         
         if i >= max_steps or dones[0]:
             print("Hit end of data!")
             break
             
     # Access inner unwrapped environment for state logs
-    actual_env = e_trade_stacked.venv.venv.envs[0]
+    actual_env = e_trade_normalized.venv.venv.envs[0]
     df_account_value = actual_env.save_asset_memory()
     df_actions = actual_env.save_action_memory()
     
