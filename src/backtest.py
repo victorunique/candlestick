@@ -5,7 +5,7 @@ import argparse
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack, VecNormalize
 
-from src.env_stocktrading_minute import StockTradingEnvMinute
+from src.env_stocktrading import StockTradingEnv
 
 def backtest(
     df: pd.DataFrame,
@@ -28,7 +28,7 @@ def backtest(
         "sell_cost_pct": 0.0001,
         "print_verbosity": 500,
         "discrete_actions": True,
-        "daily_information_cols": ["open", "close", "high", "low", "volume"] + indicators,
+        "feature_columns": ["open", "close", "high", "low", "volume"] + indicators,
         "stoploss_penalty": stoploss_penalty,
         "profit_loss_ratio": profit_loss_ratio,
         "cash_penalty_proportion": cash_penalty,
@@ -37,7 +37,7 @@ def backtest(
         "random_start": False  # Start at beginning
     }
     
-    e_trade_gym = DummyVecEnv([lambda: StockTradingEnvMinute(df=df, **env_test_kwargs)])
+    e_trade_gym = DummyVecEnv([lambda: StockTradingEnv(df=df, **env_test_kwargs)])
     
     vec_normalize_path = f"{model_path}_vecnormalize.pkl"
     if not os.path.exists(vec_normalize_path):

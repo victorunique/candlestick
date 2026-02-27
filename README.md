@@ -11,14 +11,14 @@ All components have been rewritten following Test-Driven Development (TDD) princ
 ├── src
 │   ├── data_fetcher.py               # Fetches Yahoo Finance data
 │   ├── feature_engineer.py           # Calculates MACD, RSI, CCI, DX
-│   ├── env_stocktrading_minute.py    # Custom Gym environment with dynamic stop-loss  
+│   ├── env_stocktrading.py           # Custom Gym environment with dynamic stop-loss  
 │   ├── custom_models.py              # CNN1DFeaturesExtractor PyTorch model
 │   ├── train_ppo.py                  # Trains the PPO agent
 │   └── backtest.py                   # Tests the agent on unseen data
 ├── tests                             # Pytest unit tests for every component
 │   ├── test_data_fetcher.py
 │   ├── test_feature_engineer.py
-│   ├── test_env_stocktrading_minute.py
+│   ├── test_env_stocktrading.py
 │   ├── test_custom_models.py
 │   ├── test_train_ppo.py
 │   └── test_backtest.py
@@ -54,7 +54,7 @@ uv run src/feature_engineer.py --input_path ./data/raw_data.csv --output_path ./
 ```
 
 ### 3. Train the Agent
-Initializes the minute-level trading environment and trains the PPO agent with 1D CNN extraction. Saves the `.zip` model and the `_vecnormalize.pkl` stats.
+Initializes the trading environment and trains the PPO agent with 1D CNN extraction. Saves the `.zip` model and the `_vecnormalize.pkl` stats.
 ```bash
 uv run src/train_ppo.py --data_path ./data/processed_data.csv --model_dir ./trained_models --model_name my_ppo_bot --total_timesteps 10000
 ```

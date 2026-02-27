@@ -2,7 +2,7 @@ import pytest
 import pandas as pd
 import numpy as np
 import gymnasium as gym
-from src.env_stocktrading_minute import StockTradingEnvMinute
+from src.env_stocktrading import StockTradingEnv
 
 @pytest.fixture
 def mock_stock_data():
@@ -50,7 +50,7 @@ def env_kwargs():
         "sell_cost_pct": 0.001,
         "print_verbosity": 10,
         "discrete_actions": False,
-        "daily_information_cols": ["open", "close", "high", "low", "volume", "macd", "rsi_30", "cci_30", "dx_30"],
+        "feature_columns": ["open", "close", "high", "low", "volume", "macd", "rsi_30", "cci_30", "dx_30"],
         "stoploss_penalty": 0.9,
         "profit_loss_ratio": 2,
         "cash_penalty_proportion": 0.1,
@@ -60,13 +60,13 @@ def env_kwargs():
     }
 
 def test_env_init(mock_stock_data, env_kwargs):
-    env = StockTradingEnvMinute(df=mock_stock_data, **env_kwargs)
+    env = StockTradingEnv(df=mock_stock_data, **env_kwargs)
     assert len(env.assets) == 2
     assert env.initial_amount == 1000000
     assert env.action_space.shape[0] == 4  # 2 for trading actions, 2 for stoploss ratios
     
 def test_env_reset(mock_stock_data, env_kwargs):
-    env = StockTradingEnvMinute(df=mock_stock_data, **env_kwargs)
+    env = StockTradingEnv(df=mock_stock_data, **env_kwargs)
     state, info = env.reset()
     assert isinstance(state, list) or isinstance(state, np.ndarray)
     
@@ -77,7 +77,7 @@ def test_env_reset(mock_stock_data, env_kwargs):
     assert state[2] == 0  # MSFT holdings
 
 def test_env_step_buy(mock_stock_data, env_kwargs):
-    env = StockTradingEnvMinute(df=mock_stock_data, **env_kwargs)
+    env = StockTradingEnv(df=mock_stock_data, **env_kwargs)
     state, _ = env.reset()
     
     # Action: Buy 1 * 100 hmax AAPL, Buy 0 MSFT. Stoploss ratios 0.9, 0.9
@@ -95,7 +95,7 @@ def test_env_step_buy(mock_stock_data, env_kwargs):
 
 def test_env_stoploss_trigger(mock_stock_data, env_kwargs):
     # This specifically tests the stop-loss intervention mechanism
-    env = StockTradingEnvMinute(df=mock_stock_data, **env_kwargs)
+    env = StockTradingEnv(df=mock_stock_data, **env_kwargs)
     env.reset()
     
     # Buy a lot of AAPL on day 0
@@ -112,3 +112,64 @@ def test_env_stoploss_trigger(mock_stock_data, env_kwargs):
     holdings = next_state[1:3]
     # Stoploss should have fired and sold all AAPL
     assert holdings[0] == 0
+
+
+def test_stoploss_executes_at_threshold_price(mock_stock_data, env_kwargs):
+    """
+    When stop-loss fires, proceeds should be calculated at the SL threshold
+    price (avg_buy_price * stoploss_ratio), NOT at the bar's close price.
+    """
+    env = StockTradingEnv(df=mock_stock_data, **env_kwargs)
+    env.reset()
+
+    # Step 0: Buy AAPL. Action [1.0, 0.0] * hmax=100 -> 100 dollar-units.
+    # AAPL close at step 0 = 100, so shares = 100/100 = 1.0 share.
+    env.step(np.array([1.0, 0.0, 0.9, 0.9]))
+    aapl_holdings = env.state_memory[-1][1]
+    cash_after_buy = env.state_memory[-1][0]
+
+    # Force avg_buy_price to 200 so SL threshold = 200 * 0.9 = 180.
+    # Step 1: AAPL low = 105 which is < 180, so SL triggers.
+    # AAPL close at step 1 = 110 (NOT the SL execution price).
+    env.avg_buy_price = np.array([200.0, 0.0])
+
+    action = np.array([0.0, 0.0, 0.9, 0.9])
+    next_state, reward, done, truncated, info = env.step(action)
+
+    cash_after_sl = next_state[0]
+    sl_threshold_price = 200.0 * 0.9  # = 180.0
+    expected_gross_proceeds = aapl_holdings * sl_threshold_price
+    sell_cost = expected_gross_proceeds * env.sell_cost_pct
+
+    # Cash should reflect SL threshold price, NOT close price (110)
+    expected_cash = cash_after_buy + expected_gross_proceeds - sell_cost
+    assert abs(cash_after_sl - expected_cash) < 0.01, (
+        f"SL should sell at threshold ${sl_threshold_price}, "
+        f"expected cash ${expected_cash:.2f}, got ${cash_after_sl:.2f}"
+    )
+
+
+def test_stoploss_no_trigger_when_low_above_threshold(mock_stock_data, env_kwargs):
+    """
+    If the bar's low stays above the SL threshold, the stop-loss should NOT
+    fire and holdings should be preserved.
+    """
+    env = StockTradingEnv(df=mock_stock_data, **env_kwargs)
+    env.reset()
+
+    # Step 0: Buy AAPL
+    env.step(np.array([1.0, 0.0, 0.9, 0.9]))
+    aapl_holdings_before = env.state_memory[-1][1]
+    assert aapl_holdings_before > 0
+
+    # avg_buy_price after buying at close=100 should be 100.
+    # SL threshold = 100 * 0.9 = 90.
+    # Step 1: AAPL low = 105 which is > 90, so SL should NOT trigger.
+    action = np.array([0.0, 0.0, 0.9, 0.9])  # hold
+    next_state, _, _, _, _ = env.step(action)
+
+    aapl_holdings_after = next_state[1]
+    assert aapl_holdings_after == aapl_holdings_before, (
+        f"SL should not trigger when low (105) > threshold (90), "
+        f"but holdings changed from {aapl_holdings_before} to {aapl_holdings_after}"
+    )

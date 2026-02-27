@@ -6,10 +6,11 @@ import numpy as np
 import pandas as pd
 from gymnasium import spaces
 
-class StockTradingEnvMinute(gym.Env):
+class StockTradingEnv(gym.Env):
     """
-    A minute-level trading environment optimized for scalping/day-trading.
+    A multi-timeframe trading environment (supports 1m, 5m, 1h, 1d, etc.).
     It focuses on immediate PnL (Profit and Loss) rather than long-term accumulated average return.
+    The timestamp column should contain ISO-format timestamps at whatever interval the data uses.
     """
     metadata = {"render.modes": ["human"]}
 
@@ -18,7 +19,7 @@ class StockTradingEnvMinute(gym.Env):
         df,
         buy_cost_pct=3e-3,
         sell_cost_pct=3e-3,
-        date_col_name="date",
+        timestamp_col_name="date",
         hmax=10,
         discrete_actions=False,
         shares_increment=1,
@@ -26,7 +27,7 @@ class StockTradingEnvMinute(gym.Env):
         profit_loss_ratio=2,
         print_verbosity=10,
         initial_amount=1e6,
-        daily_information_cols=["open", "close", "high", "low", "volume"],
+        feature_columns=["open", "close", "high", "low", "volume"],
         cache_indicator_data=True,
         cash_penalty_proportion=0.1,
         random_start=True,
@@ -39,13 +40,13 @@ class StockTradingEnvMinute(gym.Env):
         self.df = df
         self.stock_col = "tic"
         self.assets = sorted(df[self.stock_col].unique())
-        self.dates = df[date_col_name].sort_values().unique()
+        self.timestamps = df[timestamp_col_name].sort_values().unique()
         self.random_start = random_start
         self.episode_length = episode_length
         self.discrete_actions = discrete_actions
         self.patient = patient
         self.currency = currency
-        self.df = self.df.set_index(date_col_name)
+        self.df = self.df.set_index(timestamp_col_name)
         self.shares_increment = shares_increment
         self.hmax = hmax
         self.initial_amount = initial_amount
@@ -54,9 +55,9 @@ class StockTradingEnvMinute(gym.Env):
         self.sell_cost_pct = sell_cost_pct
         self.stoploss_penalty = stoploss_penalty
         self.min_profit_penalty = 1 + profit_loss_ratio * (1 - self.stoploss_penalty)
-        self.daily_information_cols = daily_information_cols
+        self.feature_columns = feature_columns
         self.state_space = (
-            1 + len(self.assets) + len(self.assets) * len(self.daily_information_cols)
+            1 + len(self.assets) + len(self.assets) * len(self.feature_columns)
         )
         
         # Action Space: composite of trading actions and stoploss ratios
@@ -89,21 +90,21 @@ class StockTradingEnvMinute(gym.Env):
         if self.cache_indicator_data:
             # print("caching data...")
             temp_df = self.df.reset_index()
-            pivot_df = temp_df.pivot(index='date', columns='tic', values=self.daily_information_cols)
+            pivot_df = temp_df.pivot(index='date', columns='tic', values=self.feature_columns)
             pivot_df.columns = pivot_df.columns.swaplevel(0, 1)
             
             expected_cols = pd.MultiIndex.from_product(
-                [self.assets, self.daily_information_cols],
+                [self.assets, self.feature_columns],
                 names=['tic', 'feature']
             )
             pivot_df = pivot_df.reindex(columns=expected_cols)
 
-            n_dates = len(self.dates)
+            n_steps = len(self.timestamps)
             n_assets = len(self.assets)
-            n_features = len(self.daily_information_cols)
+            n_features = len(self.feature_columns)
             
-            self.cached_data = pivot_df.values.reshape(n_dates, n_assets, n_features)
-            self.col_map = {col: i for i, col in enumerate(self.daily_information_cols)}
+            self.cached_data = pivot_df.values.reshape(n_steps, n_assets, n_features)
+            self.col_map = {col: i for i, col in enumerate(self.feature_columns)}
             # print(f"data cached! Shape: {self.cached_data.shape}")
             
         self.final_asset_memory = None
@@ -116,24 +117,24 @@ class StockTradingEnvMinute(gym.Env):
 
     @property
     def current_step(self):
-        return self.date_index - self.starting_point
+        return self.step_index - self.starting_point
 
     def reset(self, *, seed=None, options=None):
         self.avg_buy_price = np.zeros(len(self.assets))
         if self.random_start:
             if self.episode_length > 0:
-                max_start = len(self.dates) - self.episode_length
+                max_start = len(self.timestamps) - self.episode_length
                 if max_start <= 0:
                     starting_point = 0
                 else:
                     starting_point = random.choice(range(max_start))
             else:
-                starting_point = random.choice(range(int(len(self.dates) * 0.5)))
+                starting_point = random.choice(range(int(len(self.timestamps) * 0.5)))
             self.starting_point = starting_point
         else:
             self.starting_point = 0
         
-        self.date_index = self.starting_point
+        self.step_index = self.starting_point
         self.step_in_episode = 0
 
         self.episode += 1
@@ -150,27 +151,27 @@ class StockTradingEnvMinute(gym.Env):
         init_state = np.array(
             [self.initial_amount]
             + [0] * len(self.assets)
-            + self.get_date_vector(self.date_index)
+            + self.get_step_vector(self.step_index)
         )
         self.state_memory.append(init_state)
         return init_state, {}
 
-    def get_date_vector(self, date, cols=None):
+    def get_step_vector(self, step, cols=None):
         if self.cached_data is not None:
             if cols is None:
-                return self.cached_data[date].flatten().tolist()
+                return self.cached_data[step].flatten().tolist()
             else:
                 col_indices = [self.col_map[c] for c in cols]
-                return self.cached_data[date, :, col_indices].flatten().tolist()
+                return self.cached_data[step, :, col_indices].flatten().tolist()
         else:
-            date = self.dates[date]
+            ts = self.timestamps[step]
             if cols is None:
-                cols = self.daily_information_cols
-            trunc_df = self.df.loc[[date]]
+                cols = self.feature_columns
+            trunc_df = self.df.loc[[ts]]
             v = []
             for a in self.assets:
                 subset = trunc_df[trunc_df[self.stock_col] == a]
-                v += subset.loc[date, cols].tolist()
+                v += subset.loc[ts, cols].tolist()
             return v
 
     def return_terminal(self, reason="Last Date", reward=0):
@@ -194,7 +195,7 @@ class StockTradingEnvMinute(gym.Env):
         gl_pct = self.account_information["total_assets"][-1] / self.initial_amount
         rec = [
             self.episode,
-            self.date_index - self.starting_point,
+            self.step_index - self.starting_point,
             reason,
             f"{self.currency}{'{:0,.0f}'.format(float(self.account_information['cash'][-1]))}",
             f"{self.currency}{'{:0,.0f}'.format(float(self.account_information['total_assets'][-1]))}",
@@ -214,7 +215,7 @@ class StockTradingEnvMinute(gym.Env):
         begin_cash = self.state_memory[-1][0]
         holdings = np.array(self.state_memory[-1][1:len(self.assets) + 1])
 
-        current_closings = np.array(self.get_date_vector(self.date_index, cols=["close"]))
+        current_closings = np.array(self.get_step_vector(self.step_index, cols=["close"]))
         prev_total_assets = begin_cash + np.dot(holdings, current_closings)
 
         if isinstance(actions, dict):
@@ -237,10 +238,10 @@ class StockTradingEnvMinute(gym.Env):
         if (self.current_step + 1) % self.print_verbosity == 0:
             self.log_step(reason="update")
 
-        if self.date_index == len(self.dates) - 1:
+        if self.step_index == len(self.timestamps) - 1:
             return self.return_terminal(reward=0)
 
-        current_lows = np.array(self.get_date_vector(self.date_index, cols=["low"]))
+        current_lows = np.array(self.get_step_vector(self.step_index, cols=["low"]))
         sl_thresholds = self.avg_buy_price * stoploss_ratios
         sl_hit_mask = (current_lows < sl_thresholds) & (holdings > 0)
         
@@ -266,7 +267,9 @@ class StockTradingEnvMinute(gym.Env):
         actions_final = np.maximum(actions_final, -np.array(holdings))
 
         sells = -np.clip(actions_final, -np.inf, 0)
-        proceeds = np.dot(sells, current_closings)
+        # Use SL threshold price for stop-loss sells, close price for normal sells
+        sell_prices = np.where(sl_hit_mask, sl_thresholds, current_closings)
+        proceeds = np.dot(sells, sell_prices)
         costs = proceeds * self.sell_cost_pct
         coh = begin_cash + proceeds
 
@@ -303,14 +306,14 @@ class StockTradingEnvMinute(gym.Env):
 
         self.avg_buy_price = np.where(holdings_updated == 0, 0, self.avg_buy_price)
 
-        self.date_index += 1
+        self.step_index += 1
         self.step_in_episode += 1
 
         truncated = False
         if self.episode_length > 0 and self.step_in_episode >= self.episode_length:
             truncated = True
 
-        new_closings = np.array(self.get_date_vector(self.date_index, cols=["close"]))
+        new_closings = np.array(self.get_step_vector(self.step_index, cols=["close"]))
         new_asset_value = np.dot(holdings_updated, new_closings)
         new_total_assets = coh + new_asset_value
 
@@ -326,7 +329,7 @@ class StockTradingEnvMinute(gym.Env):
         self.account_information["reward"].append(reward)
 
         next_state = np.array(
-            [coh] + list(holdings_updated) + self.get_date_vector(self.date_index)
+            [coh] + list(holdings_updated) + self.get_step_vector(self.step_index)
         )
         self.state_memory.append(next_state)
 
@@ -338,7 +341,7 @@ class StockTradingEnvMinute(gym.Env):
                 return self.final_asset_memory
             return None
         else:
-            self.account_information["date"] = self.dates[
+            self.account_information["timestamp"] = self.timestamps[
                 self.starting_point:self.starting_point + len(self.account_information["cash"])
             ]
             return pd.DataFrame(self.account_information)
@@ -351,7 +354,7 @@ class StockTradingEnvMinute(gym.Env):
         else:
             return pd.DataFrame(
                 {
-                    "date": self.dates[self.starting_point:self.starting_point + len(self.actions_memory)],
+                    "timestamp": self.timestamps[self.starting_point:self.starting_point + len(self.actions_memory)],
                     "actions": self.actions_memory,
                     "transactions": self.transaction_memory,
                 }
@@ -378,17 +381,17 @@ if __name__ == "__main__":
         "buy_cost_pct": 0.001,
         "sell_cost_pct": 0.001,
         "discrete_actions": False,
-        "daily_information_cols": ["open", "close", "high", "low", "volume", "macd", "rsi_30", "cci_30", "dx_30"],
+        "feature_columns": ["open", "close", "high", "low", "volume", "macd", "rsi_30", "cci_30", "dx_30"],
         "episode_length": 100,
         "random_start": True
     }
     
     # Filter columns to what we actually have in df
-    available_cols = [c for c in env_kwargs["daily_information_cols"] if c in df.columns]
-    env_kwargs["daily_information_cols"] = available_cols
+    available_cols = [c for c in env_kwargs["feature_columns"] if c in df.columns]
+    env_kwargs["feature_columns"] = available_cols
     
     print(f"Initializing Environment... using columns: {available_cols}")
-    env = StockTradingEnvMinute(df=df, **env_kwargs)
+    env = StockTradingEnv(df=df, **env_kwargs)
     
     obs, info = env.reset()
     print(f"Observation shape: {obs.shape}")

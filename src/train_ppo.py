@@ -8,7 +8,7 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack, VecNormalize
 
-from src.env_stocktrading_minute import StockTradingEnvMinute
+from src.env_stocktrading import StockTradingEnv
 from src.custom_models import CNN1DFeaturesExtractor
 
 def train_ppo(
@@ -36,7 +36,7 @@ def train_ppo(
         "sell_cost_pct": 0.0001,
         "print_verbosity": 500,
         "discrete_actions": True,
-        "daily_information_cols": ["open", "close", "high", "low", "volume"] + indicators,
+        "feature_columns": ["open", "close", "high", "low", "volume"] + indicators,
         "stoploss_penalty": stoploss_penalty,
         "profit_loss_ratio": profit_loss_ratio,
         "cash_penalty_proportion": cash_penalty,
@@ -45,7 +45,7 @@ def train_ppo(
         "random_start": True
     }
     
-    e_train_gym = DummyVecEnv([lambda: StockTradingEnvMinute(df=df, **env_train_kwargs)])
+    e_train_gym = DummyVecEnv([lambda: StockTradingEnv(df=df, **env_train_kwargs)])
     e_train_normalized = VecNormalize(e_train_gym, norm_obs=True, norm_reward=True, clip_obs=10.0)
     e_train_stacked = VecFrameStack(e_train_normalized, n_stack=window_size)
     
@@ -89,7 +89,7 @@ def set_seeds(seed=42):
         torch.cuda.manual_seed_all(seed)
 
 def main():
-    parser = argparse.ArgumentParser(description="Train PPO agent with StockTradingEnvMinute")
+    parser = argparse.ArgumentParser(description="Train PPO agent with StockTradingEnv")
     parser.add_argument("--data_path", type=str, required=True, help="Path to preprocessed CSV data")
     parser.add_argument("--model_dir", type=str, default="./trained_models", help="Directory to save the trained model")
     parser.add_argument("--model_name", type=str, default="ppo_trading_agent", help="Name of the saved model")
