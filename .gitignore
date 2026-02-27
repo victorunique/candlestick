@@ -57,3 +57,6 @@ logs/
 
 # Generated protobufs limits
 *_pb2*.py
+
+# temporary data files
+*.csv

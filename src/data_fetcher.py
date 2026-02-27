@@ -104,3 +104,24 @@ class DataFetcher:
             data_df[col] *= data_df["adj"]
 
         return data_df.drop(["adjcp", "adj"], axis=1)
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Fetch historical stock data from Yahoo Finance.")
+    parser.add_argument("--start_date", type=str, required=True, help="Start date (YYYY-MM-DD)")
+    parser.add_argument("--end_date", type=str, required=True, help="End date (YYYY-MM-DD)")
+    parser.add_argument("--ticker_list", type=str, nargs="+", required=True, help="List of ticker symbols")
+    parser.add_argument("--output_path", type=str, default=None, help="Output CSV path (default: ./data_<timestamp>.csv)")
+    parser.add_argument("--auto_adjust", action="store_true", help="Enable yfinance auto_adjust logic")
+
+    args = parser.parse_args()
+
+    fetcher = DataFetcher(
+        start_date=args.start_date,
+        end_date=args.end_date,
+        ticker_list=args.ticker_list
+    )
+    
+    print(f"Fetching data for {args.ticker_list} from {args.start_date} to {args.end_date}...")
+    df = fetcher.fetch_data(output_path=args.output_path, auto_adjust=args.auto_adjust)
+    print(f"Data saved successfully. Shape: {df.shape}")
