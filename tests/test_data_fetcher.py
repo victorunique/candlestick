@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from src.data_fetcher import DataFetcher
 
 @pytest.fixture
