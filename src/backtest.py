@@ -6,6 +6,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack, VecNormalize
 
 from src.env_stocktrading import StockTradingEnv
+from src.feature_engineer import INDICATORS
 
 def backtest(
     df: pd.DataFrame,
@@ -53,9 +54,9 @@ def backtest(
     
     print("Running backtest...")
     obs = e_trade_normalized.reset()
-    max_steps = len(df.index.unique()) - 1
+    max_steps = len(df["date"].unique()) - 1
     
-    for i in range(len(df.index.unique())):
+    for i in range(len(df["date"].unique())):
         action, _states = trained_ppo.predict(obs, deterministic=True)
         obs, rewards, dones, info = e_trade_normalized.step(action)
         
@@ -67,13 +68,18 @@ def backtest(
     actual_env = e_trade_normalized.venv.venv.envs[0]
     df_account_value = actual_env.save_asset_memory()
     df_actions = actual_env.save_action_memory()
+
+    if df_account_value is None or df_actions is None:
+        raise RuntimeError(
+            "Backtest produced no results. The data may be too short for the given window_size."
+        )
     
     # Calculate simple performance
     final_value = df_account_value.iloc[-1]['total_assets']
     initial_value = env_test_kwargs['initial_amount']
     return_pct = ((final_value - initial_value) / initial_value) * 100
 
-    print("\n--- Backtest Layout ---")
+    print("\n--- Backtest Results ---")
     print(f"Initial Portfolio Value: {initial_value}")
     print(f"Final Portfolio Value:   {final_value:.2f}")
     print(f"Total Return:            {return_pct:.2f}%")
@@ -89,7 +95,7 @@ def main():
     parser.add_argument("--data_path", type=str, required=True, help="Path to preprocessed CSV backtest data")
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained model (without .zip)")
     parser.add_argument("--results_dir", type=str, default="./results", help="Directory to save backtest CSVs")
-    parser.add_argument("--indicators", type=str, nargs="+", default=["macd", "rsi_30", "cci_30", "dx_30"], help="List of indicators used in data")
+    parser.add_argument("--indicators", type=str, nargs="+", default=INDICATORS, help="List of indicators used in data")
     parser.add_argument("--window_size", type=int, default=60, help="CNN1D Window size")
     
     args = parser.parse_args()

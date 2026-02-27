@@ -60,3 +60,4 @@ logs/
 
 # temporary data files
 *.csv
+trained_models/

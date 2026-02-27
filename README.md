@@ -67,4 +67,6 @@ Loads the trained model and normalizer, predicting actions on the dataset and ca
 # and process it through feature_engineer.py first.
 uv run python -m src.backtest --data_path ./data/processed_data.csv --model_path ./trained_models/my_ppo_bot --results_dir ./results
 ```
+Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profit_loss_ratio`, `--cash_penalty`, `--window_size`. Run `--help` for details.
+
 The backtest will output `my_ppo_bot_account_history.csv` (portfolio value over time) and `my_ppo_bot_action_history.csv` (trade execution log) in the specified results directory.
