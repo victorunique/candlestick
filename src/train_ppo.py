@@ -7,10 +7,53 @@ import torch
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack, VecNormalize
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.callbacks import BaseCallback
 
 from src.env_stocktrading import StockTradingEnv
 from src.custom_models import CNN1DFeaturesExtractor
 from src.feature_engineer import INDICATORS
+
+
+class RewardLoggingCallback(BaseCallback):
+    """Logs per-rollout training metrics to a CSV for learning-curve visualization."""
+
+    def __init__(self, log_path: str, verbose: int = 0):
+        super().__init__(verbose)
+        self.log_path = log_path
+        self.rows: list[dict] = []
+
+    def _on_rollout_end(self) -> None:
+        logger = self.model.logger.name_to_value
+        
+        # Extract episode rewards directly from the model's info buffer
+        ep_info_buffer = self.model.ep_info_buffer
+        if ep_info_buffer and len(ep_info_buffer) > 0:
+            ep_rew_mean = np.mean([ep_info["r"] for ep_info in ep_info_buffer])
+            ep_len_mean = np.mean([ep_info["l"] for ep_info in ep_info_buffer])
+        else:
+            ep_rew_mean = float("nan")
+            ep_len_mean = float("nan")
+            
+        self.rows.append({
+            "timesteps": self.num_timesteps,
+            "ep_rew_mean": ep_rew_mean,
+            "ep_len_mean": ep_len_mean,
+            "policy_loss": logger.get("train/policy_gradient_loss", float("nan")),
+            "value_loss": logger.get("train/value_loss", float("nan")),
+            "entropy_loss": logger.get("train/entropy_loss", float("nan")),
+            "approx_kl": logger.get("train/approx_kl", float("nan")),
+            "clip_fraction": logger.get("train/clip_fraction", float("nan")),
+        })
+
+    def _on_training_end(self) -> None:
+        pd.DataFrame(self.rows).to_csv(self.log_path, index=False)
+        if self.verbose:
+            print(f"Training log saved to {self.log_path}")
+
+    def _on_step(self) -> bool:
+        return True
+
 
 def train_ppo(
     df: pd.DataFrame, 
@@ -47,11 +90,19 @@ def train_ppo(
         "random_start": True
     }
     
-    e_train_gym = DummyVecEnv([lambda: StockTradingEnv(df=df, **env_train_kwargs)])
+    e_train_gym = DummyVecEnv([lambda: Monitor(StockTradingEnv(df=df, **env_train_kwargs))])
     e_train_stacked = VecFrameStack(e_train_gym, n_stack=window_size)
     e_train_normalized = VecNormalize(e_train_stacked, norm_obs=True, norm_reward=True, clip_obs=10.0)
     
-    device = "cpu"  # Force CPU as PPO with small networks is usually faster on CPU
+    if torch.backends.mps.is_available():
+        device = "mps"
+        print("Using MPS (Metal Performance Shaders) for training.")
+    elif torch.cuda.is_available():
+        device = "cuda"
+        print("Using CUDA for training.")
+    else:
+        device = "cpu"
+        print("Using CPU for training.")
     
     PPO_PARAMS = {
         "n_steps": 2048,
@@ -76,7 +127,14 @@ def train_ppo(
         **PPO_PARAMS
     )
     
-    model.learn(total_timesteps=total_timesteps, tb_log_name="ppo_stock_trading")
+    log_path = os.path.join(model_dir, f"{model_name}_training_log.csv")
+    reward_callback = RewardLoggingCallback(log_path=log_path, verbose=1)
+    
+    model.learn(
+        total_timesteps=total_timesteps,
+        tb_log_name="ppo_stock_trading",
+        callback=reward_callback,
+    )
     
     model_path = os.path.join(model_dir, model_name)
     model.save(model_path)
@@ -90,6 +148,8 @@ def set_seeds(seed=42):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+    if torch.backends.mps.is_available():
+        torch.mps.manual_seed(seed)
 
 def main():
     parser = argparse.ArgumentParser(description="Train PPO agent with StockTradingEnv")

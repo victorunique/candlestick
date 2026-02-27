@@ -14,7 +14,9 @@ All components have been rewritten following Test-Driven Development (TDD) princ
 │   ├── env_stocktrading.py           # Custom Gym environment with dynamic stop-loss  
 │   ├── custom_models.py              # CNN1DFeaturesExtractor PyTorch model
 │   ├── train_ppo.py                  # Trains the PPO agent
-│   └── backtest.py                   # Tests the agent on unseen data
+│   ├── plot_training_curve.py        # Visualizes the RL learning curve
+│   ├── backtest.py                   # Tests the agent on unseen data
+│   └── plot_backtest.py              # Visualizes portfolio value, drawdown, and buy/sell actions
 ├── tests                             # Pytest unit tests for every component
 │   ├── test_data_fetcher.py
 │   ├── test_feature_engineer.py
@@ -60,7 +62,13 @@ uv run python -m src.train_ppo --data_path ./data/processed_data.csv --model_dir
 ```
 Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profit_loss_ratio`, `--cash_penalty`. Run `--help` for details.
 
-### 4. Backtesting
+### 4. Plot Training Curve
+Visualize the learning curve to verify that the agent is actually learning (e.g., reward trending up) by reading the training-log CSV.
+```bash
+uv run python -m src.plot_training_curve --log_path trained_models/my_ppo_bot_training_log.csv
+```
+
+### 5. Backtesting
 Loads the trained model and normalizer, predicting actions on the dataset and calculating PnL.
 ```bash
 # In practice, you should fetch new data for backtesting (e.g. 2024-06-01 to 2024-09-01) 
@@ -70,3 +78,11 @@ uv run python -m src.backtest --data_path ./data/processed_data.csv --model_path
 Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profit_loss_ratio`, `--cash_penalty`, `--window_size`. Run `--help` for details.
 
 The backtest will output `my_ppo_bot_account_history.csv` (portfolio value over time) and `my_ppo_bot_action_history.csv` (trade execution log) in the specified results directory.
+
+### 6. Visualize Backtest Results
+Plot the portfolio total assets over time, maximum drawdown, and asset value with overlaid buy/sell signals.
+```bash
+uv run python -m src.plot_backtest \
+    --account_path results/my_ppo_bot_account_history.csv \
+    --action_path results/my_ppo_bot_action_history.csv
+```

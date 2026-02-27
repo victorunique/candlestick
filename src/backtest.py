@@ -1,7 +1,9 @@
 import os
+import numpy as np
 import pandas as pd
 import argparse
 
+import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack, VecNormalize
 
@@ -50,7 +52,15 @@ def backtest(
     e_trade_normalized.norm_reward = False
     
     print(f"Loading model from {model_path}.zip...")
-    trained_ppo = PPO.load(model_path)
+    
+    if torch.backends.mps.is_available():
+        device = "mps"
+    elif torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+        
+    trained_ppo = PPO.load(model_path, device=device)
     
     print("Running backtest...")
     obs = e_trade_normalized.reset()
@@ -79,10 +89,17 @@ def backtest(
     initial_value = env_test_kwargs['initial_amount']
     return_pct = ((final_value - initial_value) / initial_value) * 100
 
+    # Calculate max drawdown
+    portfolio_values = np.array(df_account_value['total_assets'])
+    running_max = np.maximum.accumulate(portfolio_values)
+    drawdowns = (portfolio_values - running_max) / running_max
+    max_drawdown = drawdowns.min() * 100  # as percentage
+
     print("\n--- Backtest Results ---")
     print(f"Initial Portfolio Value: {initial_value}")
     print(f"Final Portfolio Value:   {final_value:.2f}")
     print(f"Total Return:            {return_pct:.2f}%")
+    print(f"Max Drawdown:            {max_drawdown:.2f}%")
     
     model_name = os.path.basename(model_path)
     df_account_value.to_csv(os.path.join(results_dir, f"{model_name}_account_history.csv"), index=False)

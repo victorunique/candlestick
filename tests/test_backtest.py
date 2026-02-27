@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 import pandas as pd
 import os
 import tempfile
@@ -138,3 +139,34 @@ def test_backtest_iterates_by_dates_not_rows(sample_preprocessed_data, trained_m
     # The account history length should be at most n_unique_dates + 1
     # (one initial entry + one per step), NOT n_rows + 1
     assert len(account_df) <= n_unique_dates + 1
+
+
+def test_backtest_output_includes_max_drawdown(sample_preprocessed_data, trained_model_dir, capsys):
+    """Verify the printed output includes Max Drawdown."""
+    temp_dir, model_name = trained_model_dir
+    model_path = os.path.join(temp_dir, model_name)
+    results_dir = os.path.join(temp_dir, "results_drawdown")
+
+    backtest(
+        df=sample_preprocessed_data,
+        model_path=model_path,
+        results_dir=results_dir,
+        indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+        window_size=10
+    )
+
+    captured = capsys.readouterr()
+    assert "Max Drawdown:" in captured.out
+    assert "%" in captured.out.split("Max Drawdown:")[1].split("\n")[0]
+
+
+def test_max_drawdown_calculation():
+    """Verify max drawdown math on a known portfolio value sequence."""
+    # Portfolio: 100 -> 120 -> 90 -> 110
+    # Peak at 120, trough at 90 => drawdown = (90 - 120) / 120 = -25%
+    portfolio_values = np.array([100.0, 120.0, 90.0, 110.0])
+    running_max = np.maximum.accumulate(portfolio_values)
+    drawdowns = (portfolio_values - running_max) / running_max
+    max_drawdown = drawdowns.min() * 100
+
+    assert max_drawdown == pytest.approx(-25.0)
