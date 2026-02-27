@@ -31,8 +31,10 @@ class CNN1DFeaturesExtractor(BaseFeaturesExtractor):
         elif len(observation_space.shape) == 2:
             if observation_space.shape[0] == n_stack:
                 self.n_features = observation_space.shape[1]
+                self.needs_transpose = True
             else:
                 self.n_features = observation_space.shape[0]
+                self.needs_transpose = False
             self.flattened_input = False
         else:
             raise ValueError("Observation space must be 1D (flattened) or 2D.")
@@ -56,8 +58,10 @@ class CNN1DFeaturesExtractor(BaseFeaturesExtractor):
         with torch.no_grad():
             if self.flattened_input:
                 sample_input = torch.zeros(1, self.n_stack * self.n_features)
-            else:
+            elif self.needs_transpose:
                 sample_input = torch.zeros(1, self.n_stack, self.n_features)
+            else:
+                sample_input = torch.zeros(1, self.n_features, self.n_stack)
                 
             n_flatten = self.cnn(self.reshape_input(sample_input)).shape[1]
 
@@ -66,11 +70,14 @@ class CNN1DFeaturesExtractor(BaseFeaturesExtractor):
     def reshape_input(self, observations: torch.Tensor) -> torch.Tensor:
         if self.flattened_input:
             x = observations.view(-1, self.n_stack, self.n_features)
+            # Conv1d expects (Batch, Channels, Length)
+            x = x.permute(0, 2, 1)
+        elif self.needs_transpose:
+            # Input is (Batch, n_stack, n_features) → permute to (Batch, n_features, n_stack)
+            x = observations.permute(0, 2, 1)
         else:
+            # Input is already (Batch, n_features, n_stack) — no permute needed
             x = observations
-             
-        # Conv1d expects (Batch, Channels, Length)
-        x = x.permute(0, 2, 1)
         return x
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
