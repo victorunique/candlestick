@@ -37,6 +37,7 @@ def _parse_array_str(s: str) -> np.ndarray:
 def plot_backtest(
     account_path: str,
     action_path: str,
+    baseline_path: str | None = None,
     save_path: str | None = None,
 ):
     # ── Load data ────────────────────────────────────────────────────────
@@ -91,6 +92,16 @@ def plot_backtest(
     ax.set_ylabel("Total Assets ($)")
     ax.legend(loc="upper left", fontsize=9)
     ax.grid(True, alpha=0.3)
+
+    # Overlay buy-and-hold baseline if provided
+    if baseline_path and os.path.exists(baseline_path):
+        df_bl = pd.read_csv(baseline_path, parse_dates=["date"])
+        ax.plot(
+            df_bl["date"], df_bl["total_assets"],
+            color="darkorange", linewidth=1.5, linestyle="--",
+            label="Buy & Hold Baseline",
+        )
+        ax.legend(loc="upper left", fontsize=9)
 
     # ── Row 2: Max Drawdown ──────────────────────────────────────────────
     ax = axes[1]
@@ -181,8 +192,12 @@ def main():
         "--save", type=str, default=None,
         help="If set, save figure to this path instead of displaying it",
     )
+    parser.add_argument(
+        "--baseline_path", type=str, default=None,
+        help="Path to baseline_buy_and_hold_account_history.csv for overlay comparison",
+    )
     args = parser.parse_args()
-    plot_backtest(args.account_path, args.action_path, args.save)
+    plot_backtest(args.account_path, args.action_path, args.baseline_path, args.save)
 
 
 if __name__ == "__main__":

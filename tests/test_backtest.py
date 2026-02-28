@@ -4,7 +4,7 @@ import pandas as pd
 import os
 import tempfile
 from src.train_ppo import train_ppo
-from src.backtest import backtest
+from src.backtest import backtest, baseline_buy_and_hold
 
 
 @pytest.fixture
@@ -57,7 +57,7 @@ def test_backtest(sample_preprocessed_data, trained_model_dir):
     model_path = os.path.join(temp_dir, model_name)
     results_dir = os.path.join(temp_dir, "results")
 
-    account_df, actions_df = backtest(
+    account_df, actions_df, _baseline = backtest(
         df=sample_preprocessed_data,
         model_path=model_path,
         results_dir=results_dir,
@@ -100,7 +100,7 @@ def test_backtest_return_pct_positive_trend(sample_preprocessed_data, trained_mo
     model_path = os.path.join(temp_dir, model_name)
     results_dir = os.path.join(temp_dir, "results_pct")
 
-    account_df, actions_df = backtest(
+    account_df, actions_df, _baseline = backtest(
         df=sample_preprocessed_data,
         model_path=model_path,
         results_dir=results_dir,
@@ -128,7 +128,7 @@ def test_backtest_iterates_by_dates_not_rows(sample_preprocessed_data, trained_m
     # With 2 tickers, rows should be 2x the dates
     assert n_rows == n_unique_dates * 2
 
-    account_df, actions_df = backtest(
+    account_df, actions_df, _baseline = backtest(
         df=sample_preprocessed_data,
         model_path=model_path,
         results_dir=results_dir,
@@ -170,3 +170,87 @@ def test_max_drawdown_calculation():
     max_drawdown = drawdowns.min() * 100
 
     assert max_drawdown == pytest.approx(-25.0)
+
+
+def test_baseline_buy_and_hold_basic(sample_preprocessed_data):
+    """Verify baseline returns a DataFrame with correct columns and length."""
+    df_baseline = baseline_buy_and_hold(sample_preprocessed_data)
+
+    assert "date" in df_baseline.columns
+    assert "total_assets" in df_baseline.columns
+
+    n_dates = len(sample_preprocessed_data["date"].unique())
+    assert len(df_baseline) == n_dates
+
+
+def test_baseline_buy_and_hold_return_positive_trend(sample_preprocessed_data):
+    """With steadily rising prices (100+i), total return should be positive."""
+    df_baseline = baseline_buy_and_hold(sample_preprocessed_data)
+
+    initial = df_baseline["total_assets"].iloc[0]
+    final = df_baseline["total_assets"].iloc[-1]
+    assert final > initial
+
+
+def test_baseline_buy_and_hold_max_drawdown():
+    """On data with a known dip, verify max drawdown is correct."""
+    # Create 2-ticker data: prices go 100 -> 120 -> 90 -> 110
+    dates = ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04"]
+    prices = [100.0, 120.0, 90.0, 110.0]
+    data = []
+    for d, p in zip(dates, prices):
+        for tic in ["A", "B"]:
+            data.append({"date": d, "tic": tic, "close": p,
+                         "open": p, "high": p, "low": p, "volume": 1000})
+    df = pd.DataFrame(data)
+
+    df_baseline = baseline_buy_and_hold(df, initial_amount=1000.0)
+    portfolio = np.array(df_baseline["total_assets"])
+    running_max = np.maximum.accumulate(portfolio)
+    drawdowns = (portfolio - running_max) / running_max
+    max_dd = drawdowns.min() * 100
+
+    # Peak at 120-level, trough at 90-level => -25% drawdown
+    assert max_dd == pytest.approx(-25.0, abs=0.5)
+
+
+def test_backtest_returns_baseline(sample_preprocessed_data, trained_model_dir):
+    """Verify backtest() now returns 3 values including the baseline DataFrame."""
+    temp_dir, model_name = trained_model_dir
+    model_path = os.path.join(temp_dir, model_name)
+    results_dir = os.path.join(temp_dir, "results_baseline")
+
+    result = backtest(
+        df=sample_preprocessed_data,
+        model_path=model_path,
+        results_dir=results_dir,
+        indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+        window_size=10
+    )
+
+    assert len(result) == 3
+    df_account, df_actions, df_baseline = result
+    assert not df_baseline.empty
+    assert "total_assets" in df_baseline.columns
+    assert "date" in df_baseline.columns
+
+
+def test_baseline_csv_saved(sample_preprocessed_data, trained_model_dir):
+    """Verify baseline CSV is saved to results_dir."""
+    temp_dir, model_name = trained_model_dir
+    model_path = os.path.join(temp_dir, model_name)
+    results_dir = os.path.join(temp_dir, "results_csv")
+
+    backtest(
+        df=sample_preprocessed_data,
+        model_path=model_path,
+        results_dir=results_dir,
+        indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+        window_size=10
+    )
+
+    baseline_path = os.path.join(results_dir, "baseline_buy_and_hold_account_history.csv")
+    assert os.path.exists(baseline_path)
+    df_saved = pd.read_csv(baseline_path)
+    assert "total_assets" in df_saved.columns
+    assert "date" in df_saved.columns

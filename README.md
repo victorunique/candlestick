@@ -77,12 +77,17 @@ uv run python -m src.backtest --data_path ./data/processed_data.csv --model_path
 ```
 Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profit_loss_ratio`, `--cash_penalty`, `--window_size`. Run `--help` for details.
 
-The backtest will output `my_ppo_bot_account_history.csv` (portfolio value over time) and `my_ppo_bot_action_history.csv` (trade execution log) in the specified results directory.
+The backtest will output `my_ppo_bot_account_history.csv` (portfolio value over time), `my_ppo_bot_action_history.csv` (trade execution log), and `baseline_buy_and_hold_account_history.csv` (buy-and-hold baseline) in the specified results directory.
+
+The printed output includes a side-by-side comparison of the PPO agent vs. the buy-and-hold baseline (equal-weight allocation across all tickers from day 1), showing total return and max drawdown for each.
 
 ### 6. Visualize Backtest Results
 Plot the portfolio total assets over time, maximum drawdown, and asset value with overlaid buy/sell signals.
 ```bash
 uv run python -m src.plot_backtest \
     --account_path results/my_ppo_bot_account_history.csv \
-    --action_path results/my_ppo_bot_action_history.csv
+    --action_path  results/my_ppo_bot_action_history.csv \
+    --baseline_path results/baseline_buy_and_hold_account_history.csv
 ```
+
+The `--baseline_path` flag is optional; when provided, a dashed orange line for the buy-and-hold baseline is overlaid on the portfolio value chart.
