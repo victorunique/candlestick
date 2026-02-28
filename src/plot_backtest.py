@@ -14,10 +14,8 @@ Usage:
 """
 
 import argparse
-import ast
 import sys
 import os
-import re
 
 import pandas as pd
 import numpy as np
@@ -39,6 +37,7 @@ def plot_backtest(
     action_path: str,
     baseline_path: str | None = None,
     save_path: str | None = None,
+    data_path: str | None = None,
 ):
     # ── Load data ────────────────────────────────────────────────────────
     if not os.path.exists(account_path):
@@ -125,43 +124,87 @@ def plot_backtest(
 
     # ── Row 3: Close Price with Buy/Sell Arrows ──────────────────────────
     ax = axes[2]
-
-    # Parse actions column to approximate close price (actions are dollar amounts)
-    # Use the account-level data to derive an implicit price index
-    # Better: use asset_value / estimated shares, but simplest proxy is the
-    # asset_value trend itself as a "market exposure" indicator.
-    # Since we don't have raw close prices in the results CSVs, we plot
-    # asset_value (the market-exposure component) as the price proxy.
-    asset_value = df_acct["asset_value"]
-    ax.plot(timestamps_acct, asset_value, color="slategray", linewidth=1.0, label="Asset Value (market exposure)")
-
-    # Overlay buy arrows (green ↑) and sell arrows (red ↓)
     ts_act = df_act["timestamp"]
 
-    if buy_mask.any():
-        buy_ts = ts_act[buy_mask]
-        # Find corresponding asset_value at those timestamps
-        buy_vals = df_acct.set_index("timestamp").reindex(buy_ts)["asset_value"].values
-        ax.scatter(
-            buy_ts, buy_vals,
-            marker="^", s=50, color="limegreen", edgecolors="darkgreen",
-            linewidths=0.6, zorder=5, label="Net Buy",
-        )
+    if data_path and os.path.exists(data_path):
+        # ── Ticker-level close prices with per-ticker buy/sell arrows ──
+        df_data = pd.read_csv(data_path, parse_dates=["date"])
+        tickers = sorted(df_data["tic"].unique())
+        price_pivot = df_data.pivot_table(index="date", columns="tic", values="close")
+        price_pivot = price_pivot[tickers]  # enforce sorted order
 
-    if sell_mask.any():
-        sell_ts = ts_act[sell_mask]
-        sell_vals = df_acct.set_index("timestamp").reindex(sell_ts)["asset_value"].values
-        ax.scatter(
-            sell_ts, sell_vals,
-            marker="v", s=50, color="tomato", edgecolors="darkred",
-            linewidths=0.6, zorder=5, label="Net Sell",
-        )
+        # Normalise timestamps to tz-naive so both sides match for reindex
+        price_pivot.index = pd.to_datetime(price_pivot.index, utc=True).tz_localize(None)
+        ts_act_naive = pd.to_datetime(ts_act, utc=True).dt.tz_localize(None)
 
-    ax.set_ylabel("Asset Value ($)")
-    ax.set_xlabel("Date")
-    ax.set_title("Market Exposure with Buy / Sell Signals", fontsize=11)
-    ax.legend(loc="upper left", fontsize=9)
-    ax.grid(True, alpha=0.3)
+        # Plot each ticker's close price
+        colors = plt.cm.tab10.colors
+        for idx, tic in enumerate(tickers):
+            color = colors[idx % len(colors)]
+            ax.plot(
+                price_pivot.index, price_pivot[tic],
+                linewidth=1.0, color=color, label=tic.upper(),
+            )
+
+        # Decompose per-step transactions into per-ticker arrays
+        trans_matrix = np.vstack(df_act["transactions_parsed"].values)  # (steps, n_tickers)
+        for idx, tic in enumerate(tickers):
+            color = colors[idx % len(colors)]
+            per_tic_trans = trans_matrix[:, idx]
+            tic_buy_mask = per_tic_trans > 0
+            tic_sell_mask = per_tic_trans < 0
+
+            # Look up the close price at each action timestamp for this ticker
+            tic_prices_at_action = price_pivot.reindex(ts_act_naive)[tic].values
+
+            if tic_buy_mask.any():
+                ax.scatter(
+                    ts_act_naive[tic_buy_mask], tic_prices_at_action[tic_buy_mask],
+                    marker="^", s=50, color=color, edgecolors="darkgreen",
+                    linewidths=0.6, zorder=5,
+                    label="Buy" if idx == 0 else "",
+                )
+            if tic_sell_mask.any():
+                ax.scatter(
+                    ts_act_naive[tic_sell_mask], tic_prices_at_action[tic_sell_mask],
+                    marker="v", s=50, color=color, edgecolors="darkred",
+                    linewidths=0.6, zorder=5,
+                    label="Sell" if idx == 0 else "",
+                )
+
+        ax.set_ylabel("Close Price ($)")
+        ax.set_xlabel("Date")
+        ax.set_title("Ticker Prices with Buy / Sell Signals", fontsize=11)
+        ax.legend(loc="upper left", fontsize=9)
+        ax.grid(True, alpha=0.3)
+    else:
+        # ── Fallback: market exposure chart (original behaviour) ──
+        asset_value = df_acct["asset_value"]
+        ax.plot(timestamps_acct, asset_value, color="slategray", linewidth=1.0, label="Asset Value (market exposure)")
+
+        if buy_mask.any():
+            buy_ts = ts_act[buy_mask]
+            buy_vals = df_acct.set_index("timestamp").reindex(buy_ts)["asset_value"].values
+            ax.scatter(
+                buy_ts, buy_vals,
+                marker="^", s=50, color="limegreen", edgecolors="darkgreen",
+                linewidths=0.6, zorder=5, label="Net Buy",
+            )
+
+        if sell_mask.any():
+            sell_ts = ts_act[sell_mask]
+            sell_vals = df_acct.set_index("timestamp").reindex(sell_ts)["asset_value"].values
+            ax.scatter(
+                sell_ts, sell_vals,
+                marker="v", s=50, color="tomato", edgecolors="darkred",
+                linewidths=0.6, zorder=5, label="Net Sell",
+            )
+
+        ax.set_ylabel("Asset Value ($)")
+        ax.set_xlabel("Date")
+        ax.set_title("Market Exposure with Buy / Sell Signals", fontsize=11)
+        ax.legend(loc="upper left", fontsize=9)
+        ax.grid(True, alpha=0.3)
 
     # Nice date formatting
     for a in axes:
@@ -196,8 +239,12 @@ def main():
         "--baseline_path", type=str, default=None,
         help="Path to baseline_buy_and_hold_account_history.csv for overlay comparison",
     )
+    parser.add_argument(
+        "--data_path", type=str, default=None,
+        help="Path to the original preprocessed CSV (with tic/close columns) for per-ticker price chart",
+    )
     args = parser.parse_args()
-    plot_backtest(args.account_path, args.action_path, args.baseline_path, args.save)
+    plot_backtest(args.account_path, args.action_path, args.baseline_path, args.save, args.data_path)
 
 
 if __name__ == "__main__":
