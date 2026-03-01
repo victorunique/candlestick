@@ -16,14 +16,17 @@ All components have been rewritten following Test-Driven Development (TDD) princ
 │   ├── train_ppo.py                  # Trains the PPO agent
 │   ├── plot_training_curve.py        # Visualizes the RL learning curve
 │   ├── backtest.py                   # Tests the agent on unseen data
-│   └── plot_backtest.py              # Visualizes portfolio value, drawdown, and buy/sell actions
+│   ├── plot_backtest.py              # Visualizes portfolio value, drawdown, and buy/sell actions
+│   └── generate_report.py            # Generates a static HTML report with dataset info and graphs
 ├── tests                             # Pytest unit tests for every component
 │   ├── test_data_fetcher.py
 │   ├── test_feature_engineer.py
 │   ├── test_env_stocktrading.py
 │   ├── test_custom_models.py
 │   ├── test_train_ppo.py
-│   └── test_backtest.py
+│   ├── test_backtest.py
+│   ├── test_plot_backtest.py
+│   └── test_generate_report.py
 ```
 
 ## Setup & Running Tests
@@ -98,3 +101,18 @@ uv run python -m src.plot_backtest \
 The `--baseline_path` and `--fixed_sl_path` flags are optional; when provided, their strategy's portfolio value and max drawdown are overlaid on the first two charts for direct comparison.
 
 The `--data_path` flag is optional; when provided, the third graph plots each ticker's actual close price with per-ticker buy/sell arrows. Without it, the graph falls back to plotting the aggregate asset value (market exposure).
+
+### 7. Generate Static HTML Report
+Create a comprehensive, academic-style static HTML report containing dataset information, performance metrics, and embedded visualizations from backtesting and training.
+
+```bash
+uv run python -m src.generate_report \
+    --account_path results/my_ppo_bot_account_history.csv \
+    --action_path results/my_ppo_bot_action_history.csv \
+    --log_path trained_models/my_ppo_bot_training_log.csv \
+    --train_data_path data/processed_train_data.csv \
+    --test_data_path data/processed_test_data.csv \
+    --baseline_path results/baseline_buy_and_hold_account_history.csv \
+    --fixed_sl_path results/fixed_stoploss_account_history.csv \
+    --output_path results/report.html
+```

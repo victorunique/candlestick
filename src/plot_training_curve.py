@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_training_curve(log_path: str, rolling_window: int = 5, save_path: str | None = None):
+def plot_training_curve(log_path: str, rolling_window: int = 5, save_path: str | None = None, return_figs: bool = False):
     if not os.path.exists(log_path):
         print(
             f"ERROR: Training log not found at '{log_path}'.\n"
@@ -34,9 +34,15 @@ def plot_training_curve(log_path: str, rolling_window: int = 5, save_path: str |
 
     ts = df["timesteps"]
 
-    # ── Figure layout: 3 rows ────────────────────────────────────────────
-    fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
-    fig.suptitle("PPO Training — Learning Curve", fontsize=15, fontweight="bold")
+    # ── Figure layout ────────────────────────────────────────────────────
+    if return_figs:
+        fig1, ax1 = plt.subplots(figsize=(10, 4))
+        fig2, ax2 = plt.subplots(figsize=(10, 4))
+        fig3, ax3 = plt.subplots(figsize=(10, 4))
+        axes = [ax1, ax2, ax3]
+    else:
+        fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+        fig.suptitle("PPO Training — Learning Curve", fontsize=15, fontweight="bold")
 
     # ── Row 1: Episode Reward Mean ───────────────────────────────────────
     ax = axes[0]
@@ -73,6 +79,12 @@ def plot_training_curve(log_path: str, rolling_window: int = 5, save_path: str |
     ax.set_xlabel("Timesteps")
     ax.legend(loc="upper left", fontsize=9)
     ax.grid(True, alpha=0.3)
+
+    if return_figs:
+        fig1.tight_layout()
+        fig2.tight_layout()
+        fig3.tight_layout()
+        return [fig1, fig2, fig3]
 
     plt.tight_layout()
 

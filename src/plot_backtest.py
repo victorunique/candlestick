@@ -39,6 +39,7 @@ def plot_backtest(
     fixed_sl_path: str | None = None,
     save_path: str | None = None,
     data_path: str | None = None,
+    return_figs: bool = False,
 ):
     # ── Load data ────────────────────────────────────────────────────────
     if not os.path.exists(account_path):
@@ -70,9 +71,15 @@ def plot_backtest(
     buy_mask = net_positions > 0
     sell_mask = net_positions < 0
 
-    # ── Figure: 3 rows ───────────────────────────────────────────────────
-    fig, axes = plt.subplots(3, 1, figsize=(14, 11), sharex=True)
-    fig.suptitle("Backtesting Results", fontsize=15, fontweight="bold")
+    # ── Figure ───────────────────────────────────────────────────────────
+    if return_figs:
+        fig1, ax1 = plt.subplots(figsize=(10, 4))
+        fig2, ax2 = plt.subplots(figsize=(10, 4))
+        fig3, ax3 = plt.subplots(figsize=(10, 4))
+        axes = [ax1, ax2, ax3]
+    else:
+        fig, axes = plt.subplots(3, 1, figsize=(14, 11), sharex=True)
+        fig.suptitle("Backtesting Results", fontsize=15, fontweight="bold")
 
     # ── Row 1: Portfolio Value ───────────────────────────────────────────
     ax = axes[0]
@@ -143,7 +150,19 @@ def plot_backtest(
             color="indigo", linewidth=1.0, linestyle=":",
             label="PPO + Fixed SL Drawdown"
         )
-        ax.legend(loc="lower left", fontsize=9)
+        
+    # Overlay buy-and-hold baseline drawdown if provided
+    if baseline_path and os.path.exists(baseline_path):
+        df_bl = pd.read_csv(baseline_path, parse_dates=["date"])
+        bl_max = df_bl["total_assets"].cummax()
+        bl_dd = ((df_bl["total_assets"] - bl_max) / bl_max) * 100
+        ax.plot(
+            df_bl["date"], bl_dd,
+            color="darkorange", linewidth=1.0, linestyle="--",
+            label="Buy & Hold Drawdown"
+        )
+
+    ax.legend(loc="lower left", fontsize=9)
 
     ax.set_ylabel("Drawdown (%)")
     ax.set_title(f"Drawdown  —  Max: {max_dd:.2f}%", fontsize=11)
@@ -276,8 +295,17 @@ def plot_backtest(
     for a in axes:
         a.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
         a.xaxis.set_major_locator(mdates.AutoDateLocator())
-    fig.autofmt_xdate(rotation=30)
 
+    if return_figs:
+        fig1.autofmt_xdate(rotation=30)
+        fig2.autofmt_xdate(rotation=30)
+        fig3.autofmt_xdate(rotation=30)
+        fig1.tight_layout()
+        fig2.tight_layout()
+        fig3.tight_layout()
+        return [fig1, fig2, fig3]
+
+    fig.autofmt_xdate(rotation=30)
     plt.tight_layout()
 
     if save_path:
