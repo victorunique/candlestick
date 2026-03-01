@@ -1,15 +1,12 @@
 """Tests for plot_backtest module – TDD Red phase for ticker-price third graph."""
 
-import os
-import tempfile
+import pandas as pd
+import pytest
 
 import matplotlib
 matplotlib.use("Agg")  # non-interactive backend for CI
-
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import pytest
 
 from src.plot_backtest import plot_backtest
 
@@ -24,7 +21,6 @@ def synthetic_csvs(tmp_path):
     the tz normalisation logic.
     """
     dates = pd.date_range("2024-01-02", periods=5, freq="B", tz="US/Eastern")
-    tickers = ["AAPL", "MSFT"]  # sorted order
 
     # --- account_history CSV ---
     acct_rows = []
@@ -72,15 +68,22 @@ def synthetic_csvs(tmp_path):
     df_data = pd.DataFrame(data_rows)
     data_path = str(tmp_path / "data.csv")
     df_data.to_csv(data_path, index=False)
+    
+    # --- fixed_stoploss_account_history CSV ---
+    # same shape as account_history
+    fsl_path = str(tmp_path / "fixed_stoploss_account_history.csv")
+    df_fsl = df_acct.copy()
+    df_fsl["total_assets"] = df_fsl["total_assets"] * 1.05  # slightly higher for visibility
+    df_fsl.to_csv(fsl_path, index=False)
 
-    return acct_path, act_path, data_path
+    return acct_path, act_path, data_path, fsl_path
 
 
 # ── Tests ────────────────────────────────────────────────────────────────
 
 def test_plot_backtest_with_data_path_creates_ticker_lines(synthetic_csvs, tmp_path):
     """When data_path is provided, the third axis should have one line per ticker."""
-    acct_path, act_path, data_path = synthetic_csvs
+    acct_path, act_path, data_path, fsl_path = synthetic_csvs
     save_path = str(tmp_path / "out.png")
 
     plot_backtest(acct_path, act_path, data_path=data_path, save_path=save_path)
@@ -90,14 +93,14 @@ def test_plot_backtest_with_data_path_creates_ticker_lines(synthetic_csvs, tmp_p
     # Expect 2 Line2D objects (one per ticker: AAPL, MSFT)
     lines = [c for c in ax3.get_children() if isinstance(c, plt.Line2D)]
     # Filter out grid lines (they have no label or label starting with '_')
-    named_lines = [l for l in lines if l.get_label() and not l.get_label().startswith("_")]
+    named_lines = [line for line in lines if line.get_label() and not line.get_label().startswith("_")]
     assert len(named_lines) >= 2, f"Expected ≥2 ticker lines, got {len(named_lines)}"
     plt.close("all")
 
 
 def test_plot_backtest_with_data_path_scatter_buy_sell(synthetic_csvs, tmp_path):
     """When data_path is provided, buy/sell scatter markers should appear on the third axis."""
-    acct_path, act_path, data_path = synthetic_csvs
+    acct_path, act_path, data_path, fsl_path = synthetic_csvs
     save_path = str(tmp_path / "out.png")
 
     plot_backtest(acct_path, act_path, data_path=data_path, save_path=save_path)
@@ -113,7 +116,7 @@ def test_plot_backtest_with_data_path_scatter_buy_sell(synthetic_csvs, tmp_path)
 
 def test_plot_backtest_without_data_path_falls_back(synthetic_csvs, tmp_path):
     """Without data_path, the third axis should still plot asset_value (backward compat)."""
-    acct_path, act_path, data_path = synthetic_csvs
+    acct_path, act_path, data_path, fsl_path = synthetic_csvs
     save_path = str(tmp_path / "out.png")
 
     # Call without data_path – should NOT raise
@@ -127,7 +130,7 @@ def test_plot_backtest_without_data_path_falls_back(synthetic_csvs, tmp_path):
 
 def test_plot_backtest_third_axis_title_with_data_path(synthetic_csvs, tmp_path):
     """When data_path is given, third axis title should reference ticker prices."""
-    acct_path, act_path, data_path = synthetic_csvs
+    acct_path, act_path, data_path, fsl_path = synthetic_csvs
     save_path = str(tmp_path / "out.png")
 
     plot_backtest(acct_path, act_path, data_path=data_path, save_path=save_path)
@@ -142,7 +145,6 @@ def test_plot_stoploss_markers_distinct(tmp_path):
     """When stoploss_mask column is present, stop-loss sells should get a distinct
     'Stop Loss' labelled scatter marker, separate from normal 'Sell' markers."""
     dates = pd.date_range("2024-01-02", periods=5, freq="B", tz="US/Eastern")
-    tickers = ["AAPL", "MSFT"]
 
     # --- account_history CSV ---
     acct_rows = [{"timestamp": d, "cash": 900_000, "asset_value": 100_000,
@@ -231,4 +233,29 @@ def test_plot_backward_compat_no_stoploss_column(tmp_path):
     assert "Stop Loss" not in labels, (
         "Old CSVs without stoploss_mask should not produce 'Stop Loss' markers"
     )
+    plt.close("all")
+
+
+def test_plot_backtest_with_fixed_sl_path(synthetic_csvs, tmp_path):
+    """When fixed_sl_path is provided, it should overlay lines on ax0 and ax1."""
+    acct_path, act_path, data_path, fsl_path = synthetic_csvs
+    save_path = str(tmp_path / "out.png")
+
+    # Should not raise
+    plot_backtest(acct_path, act_path, fixed_sl_path=fsl_path, save_path=save_path)
+
+    fig = plt.gcf()
+    ax1 = fig.axes[0]
+    ax2 = fig.axes[1]
+    
+    # Check that ax1 has the PPO + Fixed SL line
+    lines1 = [c for c in ax1.get_children() if isinstance(c, plt.Line2D)]
+    labels1 = [line.get_label() for line in lines1]
+    assert "PPO + Fixed SL" in labels1
+    
+    # Check that ax2 has the PPO + Fixed SL Drawdown line
+    lines2 = [c for c in ax2.get_children() if isinstance(c, plt.Line2D)]
+    labels2 = [line.get_label() for line in lines2]
+    assert "PPO + Fixed SL Drawdown" in labels2
+    
     plt.close("all")

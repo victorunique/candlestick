@@ -45,6 +45,85 @@ def baseline_buy_and_hold(
     return pd.DataFrame({"date": dates, "total_assets": daily_values})
 
 
+def backtest_fixed_stoploss(
+    df: pd.DataFrame,
+    model_path: str,
+    indicators: list,
+    window_size: int = 60,
+    fixed_stoploss_ratio: float = 0.95,
+    hmax: int = 100000,
+    stoploss_penalty: float = 0.9,
+    profit_loss_ratio: float = 1.5,
+    cash_penalty: float = 0.05,
+) -> pd.DataFrame:
+    """Re-run the same trained PPO model with a fixed stop-loss ratio.
+
+    The agent's trading actions are used as-is, but the stop-loss portion of
+    the action vector is overridden with *fixed_stoploss_ratio* at every step.
+    Returns a DataFrame with columns ["total_assets", ...].
+    """
+    env_kwargs = {
+        "hmax": hmax,
+        "initial_amount": 1000000,
+        "buy_cost_pct": 0.0001,
+        "sell_cost_pct": 0.0001,
+        "print_verbosity": 500,
+        "discrete_actions": True,
+        "feature_columns": ["open", "close", "high", "low", "volume"] + indicators,
+        "stoploss_penalty": stoploss_penalty,
+        "profit_loss_ratio": profit_loss_ratio,
+        "cash_penalty_proportion": cash_penalty,
+        "patient": True,
+        "episode_length": -1,
+        "random_start": False,
+    }
+
+    env_raw = DummyVecEnv([lambda: StockTradingEnv(df=df, **env_kwargs)])
+    env_stacked = VecFrameStack(env_raw, n_stack=window_size)
+
+    vec_normalize_path = f"{model_path}_vecnormalize.pkl"
+    if not os.path.exists(vec_normalize_path):
+        raise FileNotFoundError(
+            f"Normalization statistics not found at {vec_normalize_path}"
+        )
+
+    env_norm = VecNormalize.load(vec_normalize_path, env_stacked)
+    env_norm.training = False
+    env_norm.norm_reward = False
+
+    if torch.backends.mps.is_available():
+        device = "mps"
+    elif torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+
+    trained_ppo = PPO.load(model_path, device=device)
+
+    obs = env_norm.reset()
+    n_assets = len(sorted(df["tic"].unique()))
+    max_steps = len(df["date"].unique()) - 1
+
+    for i in range(len(df["date"].unique())):
+        action, _states = trained_ppo.predict(obs, deterministic=True)
+        # Override the stop-loss portion with the fixed ratio
+        action[0, n_assets:] = fixed_stoploss_ratio
+        obs, rewards, dones, info = env_norm.step(action)
+        if i >= max_steps or dones[0]:
+            break
+
+    actual_env = env_norm.venv.venv.envs[0]
+    df_account_value = actual_env.save_asset_memory()
+
+    if df_account_value is None:
+        raise RuntimeError(
+            "Fixed-SL backtest produced no results. "
+            "The data may be too short for the given window_size."
+        )
+
+    return df_account_value
+
+
 def backtest(
     df: pd.DataFrame,
     model_path: str,
@@ -54,7 +133,8 @@ def backtest(
     hmax: int = 100000,
     stoploss_penalty: float = 0.9,
     profit_loss_ratio: float = 1.5,
-    cash_penalty: float = 0.05
+    cash_penalty: float = 0.05,
+    fixed_stoploss_ratio: float = 0.95,
 ):
     os.makedirs(results_dir, exist_ok=True)
     
@@ -141,6 +221,26 @@ def backtest(
     bl_drawdowns = (bl_values - bl_running_max) / bl_running_max
     bl_max_dd = bl_drawdowns.min() * 100
 
+    # --- PPO + Fixed Stop-Loss ---
+    print(f"Running PPO + Fixed SL (ratio={fixed_stoploss_ratio:.2f})...")
+    df_fixed_sl = backtest_fixed_stoploss(
+        df=df,
+        model_path=model_path,
+        indicators=indicators,
+        window_size=window_size,
+        fixed_stoploss_ratio=fixed_stoploss_ratio,
+        hmax=hmax,
+        stoploss_penalty=stoploss_penalty,
+        profit_loss_ratio=profit_loss_ratio,
+        cash_penalty=cash_penalty,
+    )
+    fsl_final = df_fixed_sl["total_assets"].iloc[-1]
+    fsl_return = ((fsl_final - initial_value) / initial_value) * 100
+    fsl_values = np.array(df_fixed_sl["total_assets"])
+    fsl_running_max = np.maximum.accumulate(fsl_values)
+    fsl_drawdowns = (fsl_values - fsl_running_max) / fsl_running_max
+    fsl_max_dd = fsl_drawdowns.min() * 100
+
     print("\n--- Backtest Results ---")
     print(f"Initial Portfolio Value:  {initial_value}")
     print("")
@@ -153,13 +253,19 @@ def backtest(
     print(f"  Final Portfolio Value:  {bl_final:.2f}")
     print(f"  Total Return:           {bl_return:.2f}%")
     print(f"  Max Drawdown:           {bl_max_dd:.2f}%")
+    print("")
+    print(f"  PPO + Fixed SL ({fixed_stoploss_ratio:.0%})")
+    print(f"  Final Portfolio Value:  {fsl_final:.2f}")
+    print(f"  Total Return:           {fsl_return:.2f}%")
+    print(f"  Max Drawdown:           {fsl_max_dd:.2f}%")
     
     model_name = os.path.basename(model_path)
     df_account_value.to_csv(os.path.join(results_dir, f"{model_name}_account_history.csv"), index=False)
     df_actions.to_csv(os.path.join(results_dir, f"{model_name}_action_history.csv"), index=False)
     df_baseline.to_csv(os.path.join(results_dir, "baseline_buy_and_hold_account_history.csv"), index=False)
+    df_fixed_sl.to_csv(os.path.join(results_dir, "fixed_stoploss_account_history.csv"), index=False)
     
-    return df_account_value, df_actions, df_baseline
+    return df_account_value, df_actions, df_baseline, df_fixed_sl
 
 def main():
     parser = argparse.ArgumentParser(description="Backtest a trained PPO agent.")
@@ -168,6 +274,8 @@ def main():
     parser.add_argument("--results_dir", type=str, default="./results", help="Directory to save backtest CSVs")
     parser.add_argument("--indicators", type=str, nargs="+", default=INDICATORS, help="List of indicators used in data")
     parser.add_argument("--window_size", type=int, default=60, help="CNN1D Window size")
+    parser.add_argument("--fixed_stoploss_ratio", type=float, default=0.95,
+                        help="Fixed stop-loss ratio for comparison strategy (0.5-1.0)")
     
     args = parser.parse_args()
     
@@ -177,12 +285,13 @@ def main():
         
     df = pd.read_csv(args.data_path)
     
-    _account, _actions, _baseline = backtest(
+    _account, _actions, _baseline, _fixed_sl = backtest(
         df=df,
         model_path=args.model_path,
         results_dir=args.results_dir,
         indicators=args.indicators,
-        window_size=args.window_size
+        window_size=args.window_size,
+        fixed_stoploss_ratio=args.fixed_stoploss_ratio,
     )
     
     print(f"Backtest full results saved to {args.results_dir}")

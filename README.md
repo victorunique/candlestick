@@ -75,11 +75,14 @@ Loads the trained model and normalizer, predicting actions on the dataset and ca
 # and process it through feature_engineer.py first.
 uv run python -m src.backtest --data_path ./data/processed_data.csv --model_path ./trained_models/my_ppo_bot --results_dir ./results
 ```
-Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profit_loss_ratio`, `--cash_penalty`, `--window_size`. Run `--help` for details.
+Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profit_loss_ratio`, `--cash_penalty`, `--window_size`, `--fixed_stoploss_ratio`. Run `--help` for details.
 
-The backtest will output `my_ppo_bot_account_history.csv` (portfolio value over time), `my_ppo_bot_action_history.csv` (trade execution log), and `baseline_buy_and_hold_account_history.csv` (buy-and-hold baseline) in the specified results directory.
+The backtest will output `my_ppo_bot_account_history.csv` (portfolio value over time), `my_ppo_bot_action_history.csv` (trade execution log), `baseline_buy_and_hold_account_history.csv` (buy-and-hold baseline), and `fixed_stoploss_account_history.csv` (PPO with fixed stop-loss) in the specified results directory.
 
-The printed output includes a side-by-side comparison of the PPO agent vs. the buy-and-hold baseline (equal-weight allocation across all tickers from day 1), showing total return and max drawdown for each.
+The printed output includes a three-way comparison:
+1. **PPO Agent** — the trained RL model with its learned dynamic stop-loss ratios.
+2. **Buy & Hold Baseline** — equal-weight allocation across all tickers from day 1.
+3. **PPO + Fixed SL** — the same RL model but with the stop-loss ratio overridden to a fixed value (default 95%, configurable via `--fixed_stoploss_ratio`).
 
 ### 6. Visualize Backtest Results
 Plot the portfolio total assets over time, maximum drawdown, and per-ticker close prices with overlaid buy/sell signals.
@@ -88,9 +91,10 @@ uv run python -m src.plot_backtest \
     --account_path results/my_ppo_bot_account_history.csv \
     --action_path  results/my_ppo_bot_action_history.csv \
     --baseline_path results/baseline_buy_and_hold_account_history.csv \
+    --fixed_sl_path results/fixed_stoploss_account_history.csv \
     --data_path data_testing_preprocessed.csv
 ```
 
-The `--baseline_path` flag is optional; when provided, a dashed orange line for the buy-and-hold baseline is overlaid on the portfolio value chart.
+The `--baseline_path` and `--fixed_sl_path` flags are optional; when provided, their strategy's portfolio value and max drawdown are overlaid on the first two charts for direct comparison.
 
 The `--data_path` flag is optional; when provided, the third graph plots each ticker's actual close price with per-ticker buy/sell arrows. Without it, the graph falls back to plotting the aggregate asset value (market exposure).

@@ -36,6 +36,7 @@ def plot_backtest(
     account_path: str,
     action_path: str,
     baseline_path: str | None = None,
+    fixed_sl_path: str | None = None,
     save_path: str | None = None,
     data_path: str | None = None,
 ):
@@ -103,7 +104,17 @@ def plot_backtest(
             color="darkorange", linewidth=1.5, linestyle="--",
             label="Buy & Hold Baseline",
         )
-        ax.legend(loc="upper left", fontsize=9)
+        
+    # Overlay fixed stop-loss strategy if provided
+    if fixed_sl_path and os.path.exists(fixed_sl_path):
+        df_fsl = pd.read_csv(fixed_sl_path, parse_dates=["timestamp"])
+        ax.plot(
+            df_fsl["timestamp"], df_fsl["total_assets"],
+            color="purple", linewidth=1.5, linestyle=":",
+            label="PPO + Fixed SL",
+        )
+        
+    ax.legend(loc="upper left", fontsize=9)
 
     # ── Row 2: Max Drawdown ──────────────────────────────────────────────
     ax = axes[1]
@@ -121,6 +132,19 @@ def plot_backtest(
         color="darkred",
         arrowprops=dict(arrowstyle="->", color="darkred", lw=1.2),
     )
+    
+    # Overlay fixed stop-loss drawdown if provided
+    if fixed_sl_path and os.path.exists(fixed_sl_path):
+        df_fsl = pd.read_csv(fixed_sl_path, parse_dates=["timestamp"])
+        fsl_max = df_fsl["total_assets"].cummax()
+        fsl_dd = ((df_fsl["total_assets"] - fsl_max) / fsl_max) * 100
+        ax.plot(
+            df_fsl["timestamp"], fsl_dd, 
+            color="indigo", linewidth=1.0, linestyle=":",
+            label="PPO + Fixed SL Drawdown"
+        )
+        ax.legend(loc="lower left", fontsize=9)
+
     ax.set_ylabel("Drawdown (%)")
     ax.set_title(f"Drawdown  —  Max: {max_dd:.2f}%", fontsize=11)
     ax.grid(True, alpha=0.3)
@@ -282,11 +306,15 @@ def main():
         help="Path to baseline_buy_and_hold_account_history.csv for overlay comparison",
     )
     parser.add_argument(
+        "--fixed_sl_path", type=str, default=None,
+        help="Path to fixed_stoploss_account_history.csv for overlay comparison",
+    )
+    parser.add_argument(
         "--data_path", type=str, default=None,
         help="Path to the original preprocessed CSV (with tic/close columns) for per-ticker price chart",
     )
     args = parser.parse_args()
-    plot_backtest(args.account_path, args.action_path, args.baseline_path, args.save, args.data_path)
+    plot_backtest(args.account_path, args.action_path, args.baseline_path, args.fixed_sl_path, args.save, args.data_path)
 
 
 if __name__ == "__main__":

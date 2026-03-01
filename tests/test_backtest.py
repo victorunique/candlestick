@@ -4,7 +4,7 @@ import pandas as pd
 import os
 import tempfile
 from src.train_ppo import train_ppo
-from src.backtest import backtest, baseline_buy_and_hold
+from src.backtest import backtest, baseline_buy_and_hold, backtest_fixed_stoploss
 
 
 @pytest.fixture
@@ -57,7 +57,7 @@ def test_backtest(sample_preprocessed_data, trained_model_dir):
     model_path = os.path.join(temp_dir, model_name)
     results_dir = os.path.join(temp_dir, "results")
 
-    account_df, actions_df, _baseline = backtest(
+    account_df, actions_df, _baseline, _fixed_sl = backtest(
         df=sample_preprocessed_data,
         model_path=model_path,
         results_dir=results_dir,
@@ -100,7 +100,7 @@ def test_backtest_return_pct_positive_trend(sample_preprocessed_data, trained_mo
     model_path = os.path.join(temp_dir, model_name)
     results_dir = os.path.join(temp_dir, "results_pct")
 
-    account_df, actions_df, _baseline = backtest(
+    account_df, actions_df, _baseline, _fixed_sl = backtest(
         df=sample_preprocessed_data,
         model_path=model_path,
         results_dir=results_dir,
@@ -128,7 +128,7 @@ def test_backtest_iterates_by_dates_not_rows(sample_preprocessed_data, trained_m
     # With 2 tickers, rows should be 2x the dates
     assert n_rows == n_unique_dates * 2
 
-    account_df, actions_df, _baseline = backtest(
+    account_df, actions_df, _baseline, _fixed_sl = backtest(
         df=sample_preprocessed_data,
         model_path=model_path,
         results_dir=results_dir,
@@ -214,11 +214,11 @@ def test_baseline_buy_and_hold_max_drawdown():
     assert max_dd == pytest.approx(-25.0, abs=0.5)
 
 
-def test_backtest_returns_baseline(sample_preprocessed_data, trained_model_dir):
-    """Verify backtest() now returns 3 values including the baseline DataFrame."""
+def test_backtest_returns_four_values(sample_preprocessed_data, trained_model_dir):
+    """Verify backtest() returns 4 values: account, actions, baseline, fixed_sl."""
     temp_dir, model_name = trained_model_dir
     model_path = os.path.join(temp_dir, model_name)
-    results_dir = os.path.join(temp_dir, "results_baseline")
+    results_dir = os.path.join(temp_dir, "results_four")
 
     result = backtest(
         df=sample_preprocessed_data,
@@ -228,11 +228,13 @@ def test_backtest_returns_baseline(sample_preprocessed_data, trained_model_dir):
         window_size=10
     )
 
-    assert len(result) == 3
-    df_account, df_actions, df_baseline = result
+    assert len(result) == 4
+    df_account, df_actions, df_baseline, df_fixed_sl = result
     assert not df_baseline.empty
     assert "total_assets" in df_baseline.columns
     assert "date" in df_baseline.columns
+    assert not df_fixed_sl.empty
+    assert "total_assets" in df_fixed_sl.columns
 
 
 def test_baseline_csv_saved(sample_preprocessed_data, trained_model_dir):
@@ -254,3 +256,59 @@ def test_baseline_csv_saved(sample_preprocessed_data, trained_model_dir):
     df_saved = pd.read_csv(baseline_path)
     assert "total_assets" in df_saved.columns
     assert "date" in df_saved.columns
+
+
+def test_backtest_fixed_stoploss_returns_dataframe(sample_preprocessed_data, trained_model_dir):
+    """Verify backtest_fixed_stoploss() returns a non-empty DataFrame with total_assets."""
+    temp_dir, model_name = trained_model_dir
+    model_path = os.path.join(temp_dir, model_name)
+
+    df_fixed_sl = backtest_fixed_stoploss(
+        df=sample_preprocessed_data,
+        model_path=model_path,
+        indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+        window_size=10,
+        fixed_stoploss_ratio=0.95,
+    )
+
+    assert not df_fixed_sl.empty
+    assert "total_assets" in df_fixed_sl.columns
+    assert len(df_fixed_sl) > 1
+
+
+def test_fixed_stoploss_csv_saved(sample_preprocessed_data, trained_model_dir):
+    """Verify fixed_stoploss_account_history.csv is written by backtest()."""
+    temp_dir, model_name = trained_model_dir
+    model_path = os.path.join(temp_dir, model_name)
+    results_dir = os.path.join(temp_dir, "results_fsl_csv")
+
+    backtest(
+        df=sample_preprocessed_data,
+        model_path=model_path,
+        results_dir=results_dir,
+        indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+        window_size=10
+    )
+
+    fsl_path = os.path.join(results_dir, "fixed_stoploss_account_history.csv")
+    assert os.path.exists(fsl_path)
+    df_saved = pd.read_csv(fsl_path)
+    assert "total_assets" in df_saved.columns
+
+
+def test_backtest_output_includes_fixed_sl(sample_preprocessed_data, trained_model_dir, capsys):
+    """Verify printed output contains the fixed stop-loss section."""
+    temp_dir, model_name = trained_model_dir
+    model_path = os.path.join(temp_dir, model_name)
+    results_dir = os.path.join(temp_dir, "results_fsl_print")
+
+    backtest(
+        df=sample_preprocessed_data,
+        model_path=model_path,
+        results_dir=results_dir,
+        indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+        window_size=10
+    )
+
+    captured = capsys.readouterr()
+    assert "PPO + Fixed SL" in captured.out
