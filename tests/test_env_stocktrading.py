@@ -173,3 +173,44 @@ def test_stoploss_no_trigger_when_low_above_threshold(mock_stock_data, env_kwarg
         f"SL should not trigger when low (105) > threshold (90), "
         f"but holdings changed from {aapl_holdings_before} to {aapl_holdings_after}"
     )
+
+
+def test_action_memory_includes_stoploss_mask(mock_stock_data, env_kwargs):
+    """save_action_memory() must include a 'stoploss_mask' column that marks
+    which steps had a stop-loss triggered (per ticker)."""
+    env = StockTradingEnv(df=mock_stock_data, **env_kwargs)
+    env.reset()
+
+    # Step 0: Buy AAPL
+    env.step(np.array([1.0, 0.0, 0.9, 0.9]))
+
+    # Step 1: Hold — no stop-loss (low=105 > threshold=90)
+    env.step(np.array([0.0, 0.0, 0.9, 0.9]))
+
+    # Force avg_buy_price high to guarantee stop-loss on step 2
+    env.avg_buy_price = np.array([200.0, 0.0])
+
+    # Step 2: SL should fire (day-2 low = 115 < threshold 180)
+    env.step(np.array([0.0, 0.0, 0.9, 0.9]))
+
+    df_actions = env.save_action_memory()
+    assert df_actions is not None, "save_action_memory() returned None"
+    assert "stoploss_mask" in df_actions.columns, (
+        f"Expected 'stoploss_mask' column, got columns: {list(df_actions.columns)}"
+    )
+
+    # Parse the stringified arrays
+    from src.plot_backtest import _parse_array_str
+    masks = df_actions["stoploss_mask"].apply(
+        lambda s: _parse_array_str(s) if isinstance(s, str) else np.array(s, dtype=float)
+    )
+
+    # Step 0 (buy) and Step 1 (hold, no SL): mask should be all zeros
+    np.testing.assert_array_equal(masks.iloc[0], [0.0, 0.0],
+                                  err_msg="Step 0 should have no stop-loss")
+    np.testing.assert_array_equal(masks.iloc[1], [0.0, 0.0],
+                                  err_msg="Step 1 should have no stop-loss")
+
+    # Step 2 (SL fired on AAPL): mask should be [1.0, 0.0]
+    np.testing.assert_array_equal(masks.iloc[2], [1.0, 0.0],
+                                  err_msg="Step 2 should have stop-loss on AAPL only")

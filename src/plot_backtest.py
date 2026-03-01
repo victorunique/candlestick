@@ -53,6 +53,9 @@ def plot_backtest(
     # Parse the stringified arrays in transactions column
     df_act["transactions_parsed"] = df_act["transactions"].apply(_parse_array_str)
 
+    # Parse optional stoploss_mask column (backward compat with old CSVs)
+    has_stoploss = "stoploss_mask" in df_act.columns
+
     timestamps_acct = df_acct["timestamp"]
     total_assets = df_acct["total_assets"]
     initial_value = total_assets.iloc[0]
@@ -148,11 +151,23 @@ def plot_backtest(
 
         # Decompose per-step transactions into per-ticker arrays
         trans_matrix = np.vstack(df_act["transactions_parsed"].values)  # (steps, n_tickers)
+
+        # Parse stoploss mask if available
+        if has_stoploss:
+            sl_matrix = np.vstack(
+                df_act["stoploss_mask"].apply(_parse_array_str).values
+            )  # (steps, n_tickers)
+        else:
+            sl_matrix = np.zeros_like(trans_matrix)
+
         for idx, tic in enumerate(tickers):
             color = colors[idx % len(colors)]
             per_tic_trans = trans_matrix[:, idx]
+            per_tic_sl = sl_matrix[:, idx] > 0.5  # boolean mask
+
             tic_buy_mask = per_tic_trans > 0
-            tic_sell_mask = per_tic_trans < 0
+            tic_normal_sell_mask = (per_tic_trans < 0) & ~per_tic_sl
+            tic_sl_sell_mask = (per_tic_trans < 0) & per_tic_sl
 
             # Look up the close price at each action timestamp for this ticker
             tic_prices_at_action = price_pivot.reindex(ts_act_naive)[tic].values
@@ -164,12 +179,19 @@ def plot_backtest(
                     linewidths=0.6, zorder=5,
                     label="Buy" if idx == 0 else "",
                 )
-            if tic_sell_mask.any():
+            if tic_normal_sell_mask.any():
                 ax.scatter(
-                    ts_act_naive[tic_sell_mask], tic_prices_at_action[tic_sell_mask],
+                    ts_act_naive[tic_normal_sell_mask], tic_prices_at_action[tic_normal_sell_mask],
                     marker="v", s=50, color=color, edgecolors="darkred",
                     linewidths=0.6, zorder=5,
                     label="Sell" if idx == 0 else "",
+                )
+            if tic_sl_sell_mask.any():
+                ax.scatter(
+                    ts_act_naive[tic_sl_sell_mask], tic_prices_at_action[tic_sl_sell_mask],
+                    marker="X", s=70, color="red", edgecolors="black",
+                    linewidths=0.8, zorder=6,
+                    label="Stop Loss" if idx == 0 else "",
                 )
 
         ax.set_ylabel("Close Price ($)")
@@ -182,6 +204,17 @@ def plot_backtest(
         asset_value = df_acct["asset_value"]
         ax.plot(timestamps_acct, asset_value, color="slategray", linewidth=1.0, label="Asset Value (market exposure)")
 
+        # Compute net-level stoploss for fallback mode
+        if has_stoploss:
+            net_sl = df_act["stoploss_mask"].apply(
+                lambda s: _parse_array_str(s).max() > 0.5
+            )
+        else:
+            net_sl = pd.Series([False] * len(df_act))
+
+        normal_sell_mask = sell_mask & ~net_sl
+        sl_sell_mask = sell_mask & net_sl
+
         if buy_mask.any():
             buy_ts = ts_act[buy_mask]
             buy_vals = df_acct.set_index("timestamp").reindex(buy_ts)["asset_value"].values
@@ -191,13 +224,22 @@ def plot_backtest(
                 linewidths=0.6, zorder=5, label="Net Buy",
             )
 
-        if sell_mask.any():
-            sell_ts = ts_act[sell_mask]
+        if normal_sell_mask.any():
+            sell_ts = ts_act[normal_sell_mask]
             sell_vals = df_acct.set_index("timestamp").reindex(sell_ts)["asset_value"].values
             ax.scatter(
                 sell_ts, sell_vals,
                 marker="v", s=50, color="tomato", edgecolors="darkred",
                 linewidths=0.6, zorder=5, label="Net Sell",
+            )
+
+        if sl_sell_mask.any():
+            sl_ts = ts_act[sl_sell_mask]
+            sl_vals = df_acct.set_index("timestamp").reindex(sl_ts)["asset_value"].values
+            ax.scatter(
+                sl_ts, sl_vals,
+                marker="X", s=70, color="red", edgecolors="black",
+                linewidths=0.8, zorder=6, label="Stop Loss",
             )
 
         ax.set_ylabel("Asset Value ($)")

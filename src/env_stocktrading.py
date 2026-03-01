@@ -54,6 +54,10 @@ class StockTradingEnv(gym.Env):
         self.buy_cost_pct = buy_cost_pct
         self.sell_cost_pct = sell_cost_pct
         self.stoploss_penalty = stoploss_penalty
+        # NOTE: min_profit_penalty is NOT currently used in the reward function.
+        # It is retained for potential future reward shaping, e.g. penalising
+        # the agent for closing trades that do not meet a minimum
+        # risk-to-reward ratio relative to the stop-loss distance.
         self.min_profit_penalty = 1 + profit_loss_ratio * (1 - self.stoploss_penalty)
         self.feature_columns = feature_columns
         self.state_space = (
@@ -83,6 +87,10 @@ class StockTradingEnv(gym.Env):
         self.printed_header = False
         self.cache_indicator_data = cache_indicator_data
         self.cached_data = None
+        # NOTE: cash_penalty_proportion is NOT currently used in the reward
+        # function. It is retained for potential future reward shaping, e.g.
+        # penalising the agent for holding an excessive proportion of the
+        # portfolio in idle cash instead of deploying it into positions.
         self.cash_penalty_proportion = cash_penalty_proportion
         self.reward_weight_pnl = reward_weight_pnl
         self.reward_weight_drawdown = reward_weight_drawdown
@@ -140,6 +148,7 @@ class StockTradingEnv(gym.Env):
         self.episode += 1
         self.actions_memory = []
         self.transaction_memory = []
+        self.stoploss_memory = []
         self.state_memory = []
         self.account_information = {
             "cash": [self.initial_amount],
@@ -245,6 +254,8 @@ class StockTradingEnv(gym.Env):
         sl_thresholds = self.avg_buy_price * stoploss_ratios
         sl_hit_mask = (current_lows < sl_thresholds) & (holdings > 0)
         
+        self.stoploss_memory.append(sl_hit_mask.astype(float))
+
         if np.any(sl_hit_mask):
             self.log_step(reason="STOP LOSS TRIGGERED")
 
@@ -357,6 +368,7 @@ class StockTradingEnv(gym.Env):
                     "timestamp": self.timestamps[self.starting_point:self.starting_point + len(self.actions_memory)],
                     "actions": self.actions_memory,
                     "transactions": self.transaction_memory,
+                    "stoploss_mask": self.stoploss_memory,
                 }
             )
 
