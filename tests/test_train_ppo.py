@@ -190,6 +190,7 @@ class TestCLIArgsForwarded:
             "--total_timesteps", "100",
             "--seed", "7",
             "--window_size", "5",
+            "--n_steps", "4096",
             "--ent_coef", "0.02",
             "--learning_rate", "0.001",
             "--gamma", "0.95",
@@ -212,6 +213,7 @@ class TestCLIArgsForwarded:
         kw = mock_train.call_args
         # Check all arguments are present (either positional or keyword)
         _, kwargs = kw
+        assert kwargs["n_steps"] == 4096
         assert kwargs["hmax"] == 50000
         assert kwargs["stoploss_penalty"] == 0.85
         assert kwargs["profit_loss_ratio"] == 2.0

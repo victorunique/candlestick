@@ -62,6 +62,7 @@ def train_ppo(
     model_name: str,
     indicators: list,
     window_size: int = 60,
+    n_steps: int = 2048,
     ent_coef: float = 0.01,
     learning_rate: float = 0.00025,
     gamma: float = 0.99,
@@ -105,7 +106,7 @@ def train_ppo(
         print("Using CPU for training.")
     
     PPO_PARAMS = {
-        "n_steps": 2048,
+        "n_steps": n_steps,
         "ent_coef": ent_coef,
         "learning_rate": learning_rate,
         "batch_size": 128,
@@ -162,6 +163,7 @@ def main():
     
     # Train Hyperparameters
     parser.add_argument("--window_size", type=int, default=60, help="CNN1D Window size")
+    parser.add_argument("--n_steps", type=int, default=2048, help="PPO rollout buffer size per update")
     parser.add_argument("--ent_coef", type=float, default=0.01)
     parser.add_argument("--learning_rate", type=float, default=0.00025)
     parser.add_argument("--gamma", type=float, default=0.99)
@@ -192,6 +194,7 @@ def main():
         model_name=args.model_name,
         indicators=args.indicators,
         window_size=args.window_size,
+        n_steps=args.n_steps,
         ent_coef=args.ent_coef,
         learning_rate=args.learning_rate,
         gamma=args.gamma,
