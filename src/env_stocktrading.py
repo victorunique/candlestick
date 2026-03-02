@@ -35,7 +35,7 @@ class StockTradingEnv(gym.Env):
         currency="$",
         episode_length=-1,
         reward_weight_pnl=1.0,
-        reward_weight_drawdown=0.2,
+        reward_weight_drawdown=0.5,
     ):
         self.df = df
         self.stock_col = "tic"
