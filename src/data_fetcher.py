@@ -4,10 +4,11 @@ import yfinance as yf
 from datetime import datetime
 
 class DataFetcher:
-    def __init__(self, start_date: str, end_date: str, ticker_list: list):
+    def __init__(self, start_date: str, end_date: str, ticker_list: list, interval: str = "1d"):
         self.start_date = start_date
         self.end_date = end_date
         self.ticker_list = ticker_list
+        self.interval = interval
 
     def fetch_data(self, output_path: str = None, auto_adjust: bool = False) -> pd.DataFrame:
         data_df = pd.DataFrame()
@@ -18,6 +19,7 @@ class DataFetcher:
                 tic,
                 start=self.start_date,
                 end=self.end_date,
+                interval=self.interval,
                 auto_adjust=auto_adjust,
             )
             if len(temp_df) > 0:
@@ -113,13 +115,15 @@ if __name__ == "__main__":
     parser.add_argument("--ticker_list", type=str, nargs="+", required=True, help="List of ticker symbols")
     parser.add_argument("--output_path", type=str, default=None, help="Output CSV path (default: ./data_<timestamp>.csv)")
     parser.add_argument("--auto_adjust", action="store_true", help="Enable yfinance auto_adjust logic")
+    parser.add_argument("--interval", type=str, default="1d", help="Data granularity (e.g., 1d, 1m, 1h)")
 
     args = parser.parse_args()
 
     fetcher = DataFetcher(
         start_date=args.start_date,
         end_date=args.end_date,
-        ticker_list=args.ticker_list
+        ticker_list=args.ticker_list,
+        interval=args.interval
     )
     
     print(f"Fetching data for {args.ticker_list} from {args.start_date} to {args.end_date}...")

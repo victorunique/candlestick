@@ -49,7 +49,7 @@ Every script provides a `--help` interface. You can string them together as foll
 ### 1. Fetch Data
 Downloads raw stock price data and formats it correctly.
 ```bash
-uv run python -m src.data_fetcher --start_date 2020-01-01 --end_date 2025-06-30 --ticker_list AAPL MSFT TSLA META AMZN GOOGL --output_path ./data/data_training.csv
+uv run python -m src.data_fetcher --start_date 2020-01-01 --end_date 2025-06-30 --ticker_list AAPL MSFT TSLA META AMZN GOOGL --output_path ./data/data_training.csv --interval 1d
 ```
 
 ### 2. Feature Engineering
@@ -63,7 +63,7 @@ Initializes the trading environment and trains the PPO agent with 1D CNN extract
 ```bash
 uv run python -m src.train_ppo --data_path ./data/data_training_preprocessed.csv --model_dir ./trained_models --model_name my_ppo_bot --total_timesteps 10000 --seed 42
 ```
-Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profit_loss_ratio`, `--cash_penalty`. Run `--help` for details.
+Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profit_loss_ratio`, `--cash_penalty`, `--reward_weight_pnl`, `--reward_weight_drawdown`. Run `--help` for details.
 
 ### 4. Plot Training Curve (Optional)
 Visualize the learning curve to verify that the agent is actually learning (e.g., reward trending up) by reading the training-log CSV.

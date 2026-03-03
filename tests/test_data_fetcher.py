@@ -107,3 +107,20 @@ def test_sorting(sample_yfinance_data, tmp_path):
         # Check dates
         assert df.iloc[0]["date"] == df.iloc[1]["date"] # Same day
         assert df.iloc[0]["date"] < df.iloc[2]["date"] # Next day
+
+def test_fetch_data_interval(sample_yfinance_data, tmp_path):
+    output_path = tmp_path / "test_output.csv"
+    fetcher = DataFetcher(start_date="2020-08-03", end_date="2020-08-06", ticker_list=["AAPL"], interval="1m")
+    
+    with patch("yfinance.download") as mock_download:
+        mock_download.return_value = sample_yfinance_data.copy()
+        
+        _ = fetcher.fetch_data(output_path=str(output_path), auto_adjust=True)
+        
+        mock_download.assert_called_with(
+            "AAPL",
+            start="2020-08-03",
+            end="2020-08-06",
+            interval="1m",
+            auto_adjust=True
+        )

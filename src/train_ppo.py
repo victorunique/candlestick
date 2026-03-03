@@ -70,6 +70,8 @@ def train_ppo(
     stoploss_penalty: float = 0.9,
     profit_loss_ratio: float = 1.5,
     cash_penalty: float = 0.05,
+    reward_weight_pnl: float = 1.0,
+    reward_weight_drawdown: float = 0.5,
     episode_length: int = 1000,
     seed: int = None
 ):
@@ -86,6 +88,8 @@ def train_ppo(
         "stoploss_penalty": stoploss_penalty,
         "profit_loss_ratio": profit_loss_ratio,
         "cash_penalty_proportion": cash_penalty,
+        "reward_weight_pnl": reward_weight_pnl,
+        "reward_weight_drawdown": reward_weight_drawdown,
         "patient": True,
         "episode_length": episode_length,
         "random_start": True
@@ -174,6 +178,8 @@ def main():
     parser.add_argument("--stoploss_penalty", type=float, default=0.9, help="Stop-loss penalty ratio")
     parser.add_argument("--profit_loss_ratio", type=float, default=1.5, help="Profit-to-loss ratio")
     parser.add_argument("--cash_penalty", type=float, default=0.05, help="Cash penalty proportion")
+    parser.add_argument("--reward_weight_pnl", type=float, default=1.0, help="Reward weight for PnL")
+    parser.add_argument("--reward_weight_drawdown", type=float, default=0.5, help="Reward weight for drawdown penalty")
     
     args = parser.parse_args()
     
@@ -203,6 +209,8 @@ def main():
         stoploss_penalty=args.stoploss_penalty,
         profit_loss_ratio=args.profit_loss_ratio,
         cash_penalty=args.cash_penalty,
+        reward_weight_pnl=args.reward_weight_pnl,
+        reward_weight_drawdown=args.reward_weight_drawdown,
         seed=args.seed
     )
     
