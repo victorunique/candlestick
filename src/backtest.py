@@ -135,6 +135,7 @@ def backtest(
     profit_loss_ratio: float = 1.5,
     cash_penalty: float = 0.05,
     fixed_stoploss_ratio: float = 0.95,
+    plaintext: bool = False,
 ):
     os.makedirs(results_dir, exist_ok=True)
     
@@ -241,23 +242,32 @@ def backtest(
     fsl_drawdowns = (fsl_values - fsl_running_max) / fsl_running_max
     fsl_max_dd = fsl_drawdowns.min() * 100
 
-    print("\n--- Backtest Results ---")
-    print(f"Initial Portfolio Value:  {initial_value}")
-    print("")
-    print("  PPO Agent")
-    print(f"  Final Portfolio Value:  {final_value:.2f}")
-    print(f"  Total Return:           {return_pct:.2f}%")
-    print(f"  Max Drawdown:           {max_drawdown:.2f}%")
-    print("")
-    print("  Buy & Hold Baseline")
-    print(f"  Final Portfolio Value:  {bl_final:.2f}")
-    print(f"  Total Return:           {bl_return:.2f}%")
-    print(f"  Max Drawdown:           {bl_max_dd:.2f}%")
-    print("")
-    print(f"  PPO + Fixed SL ({fixed_stoploss_ratio:.0%})")
-    print(f"  Final Portfolio Value:  {fsl_final:.2f}")
-    print(f"  Total Return:           {fsl_return:.2f}%")
-    print(f"  Max Drawdown:           {fsl_max_dd:.2f}%")
+    if plaintext:
+        # Machine-readable CSV: ppo_ret,ppo_dd,fsl_ret,fsl_dd,bh_ret,bh_dd
+        # Values as decimals (e.g. -0.16% → -0.0016)
+        print(
+            f"{return_pct / 100},{max_drawdown / 100},"
+            f"{fsl_return / 100},{fsl_max_dd / 100},"
+            f"{bl_return / 100},{bl_max_dd / 100}"
+        )
+    else:
+        print("\n--- Backtest Results ---")
+        print(f"Initial Portfolio Value:  {initial_value}")
+        print("")
+        print("  PPO Agent")
+        print(f"  Final Portfolio Value:  {final_value:.2f}")
+        print(f"  Total Return:           {return_pct:.2f}%")
+        print(f"  Max Drawdown:           {max_drawdown:.2f}%")
+        print("")
+        print(f"  PPO + Fixed SL ({fixed_stoploss_ratio:.0%})")
+        print(f"  Final Portfolio Value:  {fsl_final:.2f}")
+        print(f"  Total Return:           {fsl_return:.2f}%")
+        print(f"  Max Drawdown:           {fsl_max_dd:.2f}%")
+        print("")
+        print("  Buy & Hold Baseline")
+        print(f"  Final Portfolio Value:  {bl_final:.2f}")
+        print(f"  Total Return:           {bl_return:.2f}%")
+        print(f"  Max Drawdown:           {bl_max_dd:.2f}%")
     
     model_name = os.path.basename(model_path)
     df_account_value.to_csv(os.path.join(results_dir, f"{model_name}_account_history.csv"), index=False)
@@ -276,6 +286,8 @@ def main():
     parser.add_argument("--window_size", type=int, default=60, help="CNN1D Window size")
     parser.add_argument("--fixed_stoploss_ratio", type=float, default=0.95,
                         help="Fixed stop-loss ratio for comparison strategy (0.5-1.0)")
+    parser.add_argument("--plaintext", action="store_true", default=False,
+                        help="Output a single CSV line of decimal values for scripting")
     
     args = parser.parse_args()
     
@@ -292,6 +304,7 @@ def main():
         indicators=args.indicators,
         window_size=args.window_size,
         fixed_stoploss_ratio=args.fixed_stoploss_ratio,
+        plaintext=args.plaintext,
     )
     
     print(f"Backtest full results saved to {args.results_dir}")

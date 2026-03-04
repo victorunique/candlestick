@@ -82,6 +82,18 @@ Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profi
 
 The backtest will output `my_ppo_bot_account_history.csv` (portfolio value over time), `my_ppo_bot_action_history.csv` (trade execution log), `baseline_buy_and_hold_account_history.csv` (buy-and-hold baseline), and `fixed_stoploss_account_history.csv` (PPO with fixed stop-loss) in the specified results directory.
 
+#### Machine-readable output (`--plaintext`)
+
+Add `--plaintext` to emit a single comma-separated line of decimal values (no labels, no `%` signs) for scripting and hyperparameter tuning:
+
+```bash
+uv run python -m src.backtest --data_path ./data/data_testing_preprocessed.csv --model_path ./trained_models/my_ppo_bot --results_dir ./results --plaintext
+```
+
+Output format: `<ppo_return>,<ppo_max_dd>,<fsl_return>,<fsl_max_dd>,<bh_return>,<bh_max_dd>`
+
+Example: `-0.0016,-0.0069,-0.0163,-0.0228,-0.0089,-0.0158`
+
 The printed output includes a three-way comparison:
 1. **PPO Agent** — the trained RL model with its learned dynamic stop-loss ratios.
 2. **Buy & Hold Baseline** — equal-weight allocation across all tickers from day 1.

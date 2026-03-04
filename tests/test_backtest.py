@@ -312,3 +312,56 @@ def test_backtest_output_includes_fixed_sl(sample_preprocessed_data, trained_mod
 
     captured = capsys.readouterr()
     assert "PPO + Fixed SL" in captured.out
+
+
+def test_backtest_plaintext_output_format(sample_preprocessed_data, trained_model_dir, capsys):
+    """Verify plaintext=True prints a single CSV line with 6 decimal floats and no '%'."""
+    temp_dir, model_name = trained_model_dir
+    model_path = os.path.join(temp_dir, model_name)
+    results_dir = os.path.join(temp_dir, "results_plaintext")
+
+    backtest(
+        df=sample_preprocessed_data,
+        model_path=model_path,
+        results_dir=results_dir,
+        indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+        window_size=10,
+        plaintext=True,
+    )
+
+    captured = capsys.readouterr()
+    # Strip the non-plaintext output (loading messages etc.) — the plaintext
+    # line is the *last* non-empty line on stdout.
+    lines = [line for line in captured.out.strip().splitlines() if line.strip()]
+    plaintext_line = lines[-1]
+
+    # Must not contain percentage signs or labels
+    assert "%" not in plaintext_line
+    assert "Backtest Results" not in plaintext_line
+
+    parts = plaintext_line.split(",")
+    assert len(parts) == 6, f"Expected 6 values, got {len(parts)}: {plaintext_line}"
+
+    # Each part must be a valid float
+    for p in parts:
+        float(p)  # raises ValueError on failure
+
+
+def test_backtest_plaintext_disabled_by_default(sample_preprocessed_data, trained_model_dir, capsys):
+    """Verify default (plaintext=False) still prints human-readable output."""
+    temp_dir, model_name = trained_model_dir
+    model_path = os.path.join(temp_dir, model_name)
+    results_dir = os.path.join(temp_dir, "results_default")
+
+    backtest(
+        df=sample_preprocessed_data,
+        model_path=model_path,
+        results_dir=results_dir,
+        indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+        window_size=10,
+    )
+
+    captured = capsys.readouterr()
+    assert "Backtest Results" in captured.out
+    assert "PPO Agent" in captured.out
+    assert "%" in captured.out
