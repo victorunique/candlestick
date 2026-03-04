@@ -118,7 +118,8 @@ def generate_report(args):
         baseline_path=args.baseline_path,
         fixed_sl_path=args.fixed_sl_path,
         data_path=getattr(args, "test_data_path", None),
-        return_figs=True
+        return_figs=True,
+        fixed_sl_ratio=args.fixed_stoploss_ratio,
     )
     bt_b64s = []
     for fig in bt_figs:
@@ -430,6 +431,10 @@ def main():
     parser.add_argument(
         "--output_path", type=str, default="report.html",
         help="Path to save the generated HTML report"
+    )
+    parser.add_argument(
+        "--fixed_stoploss_ratio", type=float, default=0.95,
+        help="Fixed stop-loss ratio used during backtesting (default: 0.95)"
     )
 
     args = parser.parse_args()

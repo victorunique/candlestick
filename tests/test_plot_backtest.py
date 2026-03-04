@@ -247,15 +247,47 @@ def test_plot_backtest_with_fixed_sl_path(synthetic_csvs, tmp_path):
     fig = plt.gcf()
     ax1 = fig.axes[0]
     ax2 = fig.axes[1]
-    
-    # Check that ax1 has the PPO + Fixed SL line
+
+    # Check that ax1 has the PPO + Fixed SL line (with percentage)
     lines1 = [c for c in ax1.get_children() if isinstance(c, plt.Line2D)]
     labels1 = [line.get_label() for line in lines1]
-    assert "PPO + Fixed SL" in labels1
-    
-    # Check that ax2 has the PPO + Fixed SL Drawdown line
+    assert "PPO + Fixed SL (95%)" in labels1
+
+    # Check that ax2 has the PPO + Fixed SL Drawdown line (with percentage)
     lines2 = [c for c in ax2.get_children() if isinstance(c, plt.Line2D)]
     labels2 = [line.get_label() for line in lines2]
-    assert "PPO + Fixed SL Drawdown" in labels2
-    
+    assert "PPO + Fixed SL (95%)" in labels2
+
+    plt.close("all")
+
+
+def test_plot_backtest_legend_order(synthetic_csvs, tmp_path):
+    """Legend entries should appear in the specified order:
+    PPO Agent, PPO + Fixed SL (%), Buy & Hold Baseline, Initial ($)."""
+    acct_path, act_path, data_path, fsl_path = synthetic_csvs
+
+    # Create a baseline CSV (same shape as account_history but with 'date' column)
+    df_acct = pd.read_csv(acct_path, parse_dates=["timestamp"])
+    df_bl = df_acct.rename(columns={"timestamp": "date"}).copy()
+    df_bl["total_assets"] = df_bl["total_assets"] * 0.98
+    bl_path = str(tmp_path / "baseline.csv")
+    df_bl.to_csv(bl_path, index=False)
+
+    save_path = str(tmp_path / "out.png")
+    plot_backtest(
+        acct_path, act_path,
+        baseline_path=bl_path,
+        fixed_sl_path=fsl_path,
+        save_path=save_path,
+    )
+
+    fig = plt.gcf()
+    ax1 = fig.axes[0]
+    handles, labels = ax1.get_legend_handles_labels()
+
+    assert labels[0] == "PPO Agent"
+    assert labels[1] == "PPO + Fixed SL (95%)"
+    assert labels[2] == "Buy & Hold Baseline"
+    assert labels[3].startswith("Initial (")
+
     plt.close("all")

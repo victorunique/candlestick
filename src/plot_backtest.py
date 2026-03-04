@@ -40,6 +40,7 @@ def plot_backtest(
     save_path: str | None = None,
     data_path: str | None = None,
     return_figs: bool = False,
+    fixed_sl_ratio: float = 0.95,
 ):
     # ── Load data ────────────────────────────────────────────────────────
     if not os.path.exists(account_path):
@@ -83,8 +84,8 @@ def plot_backtest(
 
     # ── Row 1: Portfolio Value ───────────────────────────────────────────
     ax = axes[0]
-    ax.plot(timestamps_acct, total_assets, color="steelblue", linewidth=1.5, label="Total Assets")
-    ax.axhline(initial_value, color="gray", linestyle="--", linewidth=0.8, label=f"Initial (${initial_value:,.0f})")
+    fixed_sl_pct_str = f"{fixed_sl_ratio:.0%}"
+    ax.plot(timestamps_acct, total_assets, color="steelblue", linewidth=1.5, label="PPO Agent")
     ax.fill_between(
         timestamps_acct, initial_value, total_assets,
         where=(total_assets >= initial_value), alpha=0.15, color="green", interpolate=True,
@@ -100,8 +101,16 @@ def plot_backtest(
         fontsize=11,
     )
     ax.set_ylabel("Total Assets ($)")
-    ax.legend(loc="upper left", fontsize=9)
     ax.grid(True, alpha=0.3)
+
+    # Overlay fixed stop-loss strategy if provided
+    if fixed_sl_path and os.path.exists(fixed_sl_path):
+        df_fsl = pd.read_csv(fixed_sl_path, parse_dates=["timestamp"])
+        ax.plot(
+            df_fsl["timestamp"], df_fsl["total_assets"],
+            color="purple", linewidth=1.5, linestyle=":",
+            label=f"PPO + Fixed SL ({fixed_sl_pct_str})",
+        )
 
     # Overlay buy-and-hold baseline if provided
     if baseline_path and os.path.exists(baseline_path):
@@ -111,22 +120,16 @@ def plot_backtest(
             color="darkorange", linewidth=1.5, linestyle="--",
             label="Buy & Hold Baseline",
         )
-        
-    # Overlay fixed stop-loss strategy if provided
-    if fixed_sl_path and os.path.exists(fixed_sl_path):
-        df_fsl = pd.read_csv(fixed_sl_path, parse_dates=["timestamp"])
-        ax.plot(
-            df_fsl["timestamp"], df_fsl["total_assets"],
-            color="purple", linewidth=1.5, linestyle=":",
-            label="PPO + Fixed SL",
-        )
-        
+
+    # Initial capital line (plotted last for legend ordering)
+    ax.axhline(initial_value, color="gray", linestyle="--", linewidth=0.8, label=f"Initial (${initial_value:,.0f})")
+
     ax.legend(loc="upper left", fontsize=9)
 
     # ── Row 2: Max Drawdown ──────────────────────────────────────────────
     ax = axes[1]
     ax.fill_between(timestamps_acct, 0, drawdown_pct, color="crimson", alpha=0.35)
-    ax.plot(timestamps_acct, drawdown_pct, color="darkred", linewidth=1.0)
+    ax.plot(timestamps_acct, drawdown_pct, color="darkred", linewidth=1.0, label="PPO Agent")
     max_dd = drawdown_pct.min()
     max_dd_idx = drawdown_pct.idxmin()
     ax.annotate(
@@ -139,18 +142,18 @@ def plot_backtest(
         color="darkred",
         arrowprops=dict(arrowstyle="->", color="darkred", lw=1.2),
     )
-    
+
     # Overlay fixed stop-loss drawdown if provided
     if fixed_sl_path and os.path.exists(fixed_sl_path):
         df_fsl = pd.read_csv(fixed_sl_path, parse_dates=["timestamp"])
         fsl_max = df_fsl["total_assets"].cummax()
         fsl_dd = ((df_fsl["total_assets"] - fsl_max) / fsl_max) * 100
         ax.plot(
-            df_fsl["timestamp"], fsl_dd, 
+            df_fsl["timestamp"], fsl_dd,
             color="indigo", linewidth=1.0, linestyle=":",
-            label="PPO + Fixed SL Drawdown"
+            label=f"PPO + Fixed SL ({fixed_sl_pct_str})"
         )
-        
+
     # Overlay buy-and-hold baseline drawdown if provided
     if baseline_path and os.path.exists(baseline_path):
         df_bl = pd.read_csv(baseline_path, parse_dates=["date"])
@@ -159,7 +162,7 @@ def plot_backtest(
         ax.plot(
             df_bl["date"], bl_dd,
             color="darkorange", linewidth=1.0, linestyle="--",
-            label="Buy & Hold Drawdown"
+            label="Buy & Hold Baseline"
         )
 
     ax.legend(loc="lower left", fontsize=9)
