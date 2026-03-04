@@ -71,6 +71,7 @@ def test_generate_report_creates_html(synthetic_csvs, tmp_path):
             self.train_initial_capital = 1000000.0
             self.baseline_path = baseline_path
             self.fixed_sl_path = fixed_sl_path
+            self.fixed_stoploss_ratio = 0.95
             self.output_path = output_path
 
     args = Args(acct_path, act_path, log_path, data_path, data_path, baseline_path, acct_path, out_path)
