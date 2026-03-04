@@ -16,6 +16,7 @@ All components have been rewritten following Test-Driven Development (TDD) princ
 │   ├── train_ppo.py                  # Trains the PPO agent
 │   ├── plot_training_curve.py        # Visualizes the RL learning curve
 │   ├── backtest.py                   # Tests the agent on unseen data
+│   ├── run_pipeline.py               # Hyperparameter tuning pipeline (grid search)
 │   ├── plot_backtest.py              # Visualizes portfolio value, drawdown, and buy/sell actions
 │   └── generate_report.py            # Generates a static HTML report with dataset info and graphs
 ├── tests                             # Pytest unit tests for every component
@@ -25,6 +26,7 @@ All components have been rewritten following Test-Driven Development (TDD) princ
 │   ├── test_custom_models.py
 │   ├── test_train_ppo.py
 │   ├── test_backtest.py
+│   ├── test_run_pipeline.py
 │   ├── test_plot_backtest.py
 │   └── test_generate_report.py
 ```
@@ -128,3 +130,47 @@ uv run python -m src.generate_report \
     --fixed_sl_path results/fixed_stoploss_account_history.csv \
     --output_path results/report.html
 ```
+
+### 8. Hyperparameter Tuning Pipeline
+
+Automates the entire 4-step pipeline (fetch → feature-engineer → train → backtest) across a grid of hyperparameters, accumulating results into a single CSV.
+
+#### Configure the grid
+
+Edit the `*_LIST` constants at the top of `src/run_pipeline.py`:
+
+| Variable | Description |
+|---|---|
+| `DATE_RANGES` | List of `(train_start, train_end, test_start, test_end)` tuples |
+| `TICKER_LISTS` | List of ticker lists (shared for train & test) |
+| `TOTAL_TIMESTEPS_LIST` | Training timesteps |
+| `REWARD_WEIGHT_PNL_LIST` | Reward weight for PnL |
+| `REWARD_WEIGHT_DRAWDOWN_LIST` | Reward weight for drawdown penalty |
+| `N_STEPS_LIST`, `ENT_COEF_LIST`, `LEARNING_RATE_LIST`, `GAMMA_LIST`, `EPISODE_LENGTH_LIST` | PPO hyperparameters |
+
+Fixed values (not part of the grid): `interval=1m`, `seed=42`, `fixed_stoploss_ratio=0.95`, `initial_amount=1000000`.
+
+#### Preview combinations (dry run)
+```bash
+uv run python -m src.run_pipeline --dry-run
+```
+
+#### Run the full grid
+```bash
+uv run python -m src.run_pipeline --output ./results/hparam_results.csv
+```
+
+#### Resume from a specific combo
+```bash
+uv run python -m src.run_pipeline --start-from 5 --output ./results/hparam_results.csv
+```
+
+#### Output CSV format
+
+```
+combo_id,train_start,train_end,test_start,test_end,tickers,total_timesteps,
+reward_weight_pnl,reward_weight_drawdown,n_steps,ent_coef,learning_rate,gamma,
+episode_length,ppo_return,ppo_max_dd,fsl_return,fsl_max_dd,bh_return,bh_max_dd
+```
+
+Each combo runs in an isolated temp directory that is cleaned up afterwards, ensuring no state leakage between runs.
