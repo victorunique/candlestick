@@ -36,8 +36,10 @@ class StockTradingEnv(gym.Env):
         episode_length=-1,
         reward_weight_pnl=1.0,
         reward_weight_drawdown=0.5,
+        incremental_drawdown_penalty=True,
     ):
         self.df = df
+        self.incremental_drawdown_penalty = incremental_drawdown_penalty
         self.stock_col = "tic"
         self.assets = sorted(df[self.stock_col].unique())
         self.timestamps = df[timestamp_col_name].sort_values().unique()
@@ -157,6 +159,7 @@ class StockTradingEnv(gym.Env):
             "reward": [0],
         }
         self.peak_total_assets = self.initial_amount
+        self.prev_drawdown = 0.0
         init_state = np.array(
             [self.initial_amount]
             + [0] * len(self.assets)
@@ -329,9 +332,24 @@ class StockTradingEnv(gym.Env):
         new_total_assets = coh + new_asset_value
 
         pnl_reward = ((new_total_assets - prev_total_assets) / prev_total_assets) * 1000
+        
+        # Update peak and calculate current drawdown
         self.peak_total_assets = max(self.peak_total_assets, new_total_assets)
-        drawdown = (new_total_assets - self.peak_total_assets) / self.peak_total_assets
-        drawdown_penalty = drawdown * 1000 
+        current_drawdown = (new_total_assets - self.peak_total_assets) / self.peak_total_assets
+        
+        if self.incremental_drawdown_penalty:
+            # Calculate incremental drawdown penalty (only punish when drawdown deepens)
+            if current_drawdown < self.prev_drawdown:
+                penalized_drawdown = current_drawdown - self.prev_drawdown
+            else:
+                penalized_drawdown = 0.0
+        else:
+            # Continuous drawdown penalty
+            penalized_drawdown = current_drawdown
+            
+        self.prev_drawdown = current_drawdown
+        drawdown_penalty = penalized_drawdown * 1000 
+        
         reward = (self.reward_weight_pnl * pnl_reward) + (self.reward_weight_drawdown * drawdown_penalty)
 
         self.account_information["cash"].append(coh)

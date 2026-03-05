@@ -72,6 +72,7 @@ def train_ppo(
     cash_penalty: float = 0.05,
     reward_weight_pnl: float = 1.0,
     reward_weight_drawdown: float = 0.5,
+    incremental_drawdown_penalty: bool = True,
     episode_length: int = 1000,
     seed: int = None
 ):
@@ -90,6 +91,7 @@ def train_ppo(
         "cash_penalty_proportion": cash_penalty,
         "reward_weight_pnl": reward_weight_pnl,
         "reward_weight_drawdown": reward_weight_drawdown,
+        "incremental_drawdown_penalty": incremental_drawdown_penalty,
         "patient": True,
         "episode_length": episode_length,
         "random_start": True
@@ -180,6 +182,7 @@ def main():
     parser.add_argument("--cash_penalty", type=float, default=0.05, help="Cash penalty proportion")
     parser.add_argument("--reward_weight_pnl", type=float, default=1.0, help="Reward weight for PnL")
     parser.add_argument("--reward_weight_drawdown", type=float, default=0.5, help="Reward weight for drawdown penalty")
+    parser.add_argument("--continuous_drawdown_penalty", action="store_true", help="Use continuous instead of incremental drawdown penalty")
     
     args = parser.parse_args()
     
@@ -211,6 +214,7 @@ def main():
         cash_penalty=args.cash_penalty,
         reward_weight_pnl=args.reward_weight_pnl,
         reward_weight_drawdown=args.reward_weight_drawdown,
+        incremental_drawdown_penalty=not args.continuous_drawdown_penalty,
         seed=args.seed
     )
     

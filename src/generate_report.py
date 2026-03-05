@@ -88,7 +88,7 @@ def generate_report(args):
         train_tickers = sorted(df_train_data["tic"].unique())
         train_start_date = df_train_data["date"].min().strftime("%Y-%m-%d")
         train_end_date = df_train_data["date"].max().strftime("%Y-%m-%d")
-        train_total_days = (df_train_data["date"].max() - df_train_data["date"].min()).days
+        train_total_days = (df_train_data["date"].max() - df_train_data["date"].min()).days + 1
 
     # Process testing dataset metrics
     test_tickers = []
@@ -100,7 +100,7 @@ def generate_report(args):
         test_tickers = sorted(df_test_data["tic"].unique())
         test_start_date = df_test_data["date"].min().strftime("%Y-%m-%d")
         test_end_date = df_test_data["date"].max().strftime("%Y-%m-%d")
-        test_total_days = (df_test_data["date"].max() - df_test_data["date"].min()).days
+        test_total_days = (df_test_data["date"].max() - df_test_data["date"].min()).days + 1
 
     # Process training log metrics
     total_timesteps = "N/A"
@@ -313,7 +313,7 @@ def generate_report(args):
     if fixed_sl_ret_pct is not None:
         html += f'''
             <tr>
-                <td><strong>PPO Fixed SL</strong></td>
+                <td><strong>PPO Fixed SL ({args.fixed_stoploss_ratio:.0%})</strong></td>
                 <td>${fsl_final:,.2f}</td>
                 <td class="{'positive' if fixed_sl_ret_pct >= 0 else 'negative'}">{fixed_sl_ret_pct:+.2f}%</td>
                 <td class="{'negative' if fixed_sl_max_dd < 0 else ''}">{fixed_sl_max_dd:.2f}%</td>
