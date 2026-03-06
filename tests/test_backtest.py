@@ -365,3 +365,137 @@ def test_backtest_plaintext_disabled_by_default(sample_preprocessed_data, traine
     assert "Backtest Results" in captured.out
     assert "PPO Agent" in captured.out
     assert "%" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Unbalanced multi-ticker data (NaN bug reproduction)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def unbalanced_preprocessed_data():
+    """Two tickers where AAPL has extra timestamps that MSFT does not.
+
+    This reproduces the real-world scenario where intraday bars differ
+    across tickers due to trading halts, delayed opens, etc.  Before the
+    fix, the extra AAPL-only rows create NaN in the pivot, which cascades
+    through portfolio value calculations.
+    """
+    common_dates = pd.date_range("2024-01-01", periods=100, freq="D")
+    extra_dates = pd.date_range("2024-04-11", periods=5, freq="D")  # AAPL-only
+
+    data = []
+    for i, date in enumerate(common_dates):
+        for tic in ["AAPL", "MSFT"]:
+            data.append({
+                "date": date.strftime("%Y-%m-%d"),
+                "tic": tic,
+                "open": 100 + i, "high": 105 + i, "low": 95 + i,
+                "close": 100 + i, "volume": 1000,
+                "macd": 1, "rsi_30": 50, "cci_30": 100, "dx_30": 20,
+            })
+    # Add AAPL-only rows (no matching MSFT rows)
+    for i, date in enumerate(extra_dates):
+        data.append({
+            "date": date.strftime("%Y-%m-%d"),
+            "tic": "AAPL",
+            "open": 200 + i, "high": 210 + i, "low": 190 + i,
+            "close": 200 + i, "volume": 1000,
+            "macd": 1, "rsi_30": 50, "cci_30": 100, "dx_30": 20,
+        })
+
+    df = pd.DataFrame(data)
+    return df.sort_values(by=["date", "tic"]).reset_index(drop=True)
+
+
+def test_baseline_buy_and_hold_no_nan_with_unbalanced_data(unbalanced_preprocessed_data):
+    """baseline_buy_and_hold must not produce NaN total_assets on unbalanced data."""
+    df_baseline = baseline_buy_and_hold(unbalanced_preprocessed_data)
+
+    assert not df_baseline["total_assets"].isna().any(), (
+        "total_assets contains NaN — unbalanced ticker timestamps not handled"
+    )
+
+
+def test_baseline_max_drawdown_finite_with_unbalanced_data(unbalanced_preprocessed_data):
+    """Max drawdown must be a finite number, not NaN, on unbalanced data."""
+    df_baseline = baseline_buy_and_hold(unbalanced_preprocessed_data)
+    values = np.array(df_baseline["total_assets"])
+    running_max = np.maximum.accumulate(values)
+    drawdowns = (values - running_max) / running_max
+    max_dd = drawdowns.min()
+
+    assert np.isfinite(max_dd), (
+        f"Max drawdown is {max_dd} — NaN propagation from unbalanced data"
+    )
+
+
+@pytest.fixture
+def unbalanced_trained_model_dir(unbalanced_preprocessed_data):
+    """Train a small model on unbalanced data for backtest tests."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        model_name = "test_unbalanced_model"
+        train_ppo(
+            df=unbalanced_preprocessed_data,
+            total_timesteps=10,
+            model_dir=temp_dir,
+            model_name=model_name,
+            indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+            window_size=10,
+        )
+        yield temp_dir, model_name
+
+
+def test_backtest_no_nan_with_unbalanced_data(
+    unbalanced_preprocessed_data, unbalanced_trained_model_dir
+):
+    """Full backtest must produce NaN-free metrics on unbalanced multi-ticker data."""
+    temp_dir, model_name = unbalanced_trained_model_dir
+    model_path = os.path.join(temp_dir, model_name)
+    results_dir = os.path.join(temp_dir, "results_unbalanced")
+
+    account_df, actions_df, df_baseline, df_fixed_sl = backtest(
+        df=unbalanced_preprocessed_data,
+        model_path=model_path,
+        results_dir=results_dir,
+        indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+        window_size=10,
+    )
+
+    # PPO account history must be NaN-free
+    assert not account_df["total_assets"].isna().any(), (
+        "PPO account total_assets contains NaN"
+    )
+    # Fixed SL must be NaN-free
+    assert not df_fixed_sl["total_assets"].isna().any(), (
+        "Fixed SL total_assets contains NaN"
+    )
+    # Baseline must be NaN-free
+    assert not df_baseline["total_assets"].isna().any(), (
+        "Baseline total_assets contains NaN"
+    )
+
+
+def test_backtest_plaintext_no_nan_with_unbalanced_data(
+    unbalanced_preprocessed_data, unbalanced_trained_model_dir, capsys
+):
+    """Plaintext output must not contain 'nan' strings on unbalanced data."""
+    temp_dir, model_name = unbalanced_trained_model_dir
+    model_path = os.path.join(temp_dir, model_name)
+    results_dir = os.path.join(temp_dir, "results_unbalanced_pt")
+
+    backtest(
+        df=unbalanced_preprocessed_data,
+        model_path=model_path,
+        results_dir=results_dir,
+        indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+        window_size=10,
+        plaintext=True,
+    )
+
+    captured = capsys.readouterr()
+    lines = [line for line in captured.out.strip().splitlines() if line.strip()]
+    plaintext_line = lines[-1]
+
+    assert "nan" not in plaintext_line.lower(), (
+        f"Plaintext output contains NaN: {plaintext_line}"
+    )

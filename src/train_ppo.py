@@ -10,6 +10,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack, VecNorm
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import BaseCallback
 
+from src.data_utils import align_ticker_timestamps
 from src.env_stocktrading import StockTradingEnv
 from src.custom_models import CNN1DFeaturesExtractor
 from src.feature_engineer import INDICATORS
@@ -77,7 +78,8 @@ def train_ppo(
     seed: int = None
 ):
     os.makedirs(model_dir, exist_ok=True)
-    
+    df = align_ticker_timestamps(df)
+
     env_train_kwargs = {
         "hmax": hmax,
         "initial_amount": 1000000,

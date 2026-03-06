@@ -7,6 +7,7 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack, VecNormalize
 
+from src.data_utils import align_ticker_timestamps
 from src.env_stocktrading import StockTradingEnv
 from src.feature_engineer import INDICATORS
 
@@ -21,6 +22,7 @@ def baseline_buy_and_hold(
     date (deducting transaction costs), then holds until the end.
     Returns a DataFrame with columns ["date", "total_assets"].
     """
+    df = align_ticker_timestamps(df)
     tickers = sorted(df["tic"].unique())
     dates = sorted(df["date"].unique())
     n_tickers = len(tickers)
@@ -62,6 +64,7 @@ def backtest_fixed_stoploss(
     the action vector is overridden with *fixed_stoploss_ratio* at every step.
     Returns a DataFrame with columns ["total_assets", ...].
     """
+    df = align_ticker_timestamps(df)
     env_kwargs = {
         "hmax": hmax,
         "initial_amount": 1000000,
@@ -138,7 +141,8 @@ def backtest(
     plaintext: bool = False,
 ):
     os.makedirs(results_dir, exist_ok=True)
-    
+    df = align_ticker_timestamps(df)
+
     # Needs matching parameters to training env shape
     env_test_kwargs = {
         "hmax": hmax,
