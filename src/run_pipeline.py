@@ -38,7 +38,7 @@ DATE_RANGES = [
 
 # Each element is a list of tickers (same list used for train & test)
 TICKER_LISTS = [
-    ["SPY"],
+    ["AAPL"],
     ["AAPL", "MSFT"],
 ]
 
@@ -48,9 +48,9 @@ REWARD_WEIGHT_PNL_LIST = [1.0]
 REWARD_WEIGHT_DRAWDOWN_LIST = [0.2]
 
 N_STEPS_LIST = [2048]
-ENT_COEF_LIST = [0.01, 0.03]
+ENT_COEF_LIST = [0.01]
 LEARNING_RATE_LIST = [0.0001]
-GAMMA_LIST = [0.99, 0.95]
+GAMMA_LIST = [0.99]
 EPISODE_LENGTH_LIST = [1000]
 
 
