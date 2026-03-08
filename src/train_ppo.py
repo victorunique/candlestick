@@ -165,7 +165,7 @@ def main():
     parser.add_argument("--data_path", type=str, required=True, help="Path to preprocessed CSV data")
     parser.add_argument("--model_dir", type=str, default="./trained_models", help="Directory to save the trained model")
     parser.add_argument("--model_name", type=str, default="ppo_trading_agent", help="Name of the saved model")
-    parser.add_argument("--total_timesteps", type=int, default=200000, help="Total training timesteps")
+    parser.add_argument("--total_timesteps", type=int, default=300000, help="Total training timesteps")
     parser.add_argument("--indicators", type=str, nargs="+", default=INDICATORS, help="List of indicators used in data")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     
@@ -173,7 +173,7 @@ def main():
     parser.add_argument("--window_size", type=int, default=60, help="CNN1D Window size")
     parser.add_argument("--n_steps", type=int, default=2048, help="PPO rollout buffer size per update")
     parser.add_argument("--ent_coef", type=float, default=0.01)
-    parser.add_argument("--learning_rate", type=float, default=0.00025)
+    parser.add_argument("--learning_rate", type=float, default=0.0001)
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--episode_length", type=int, default=1000)
     
@@ -183,7 +183,7 @@ def main():
     parser.add_argument("--profit_loss_ratio", type=float, default=1.5, help="Profit-to-loss ratio")
     parser.add_argument("--cash_penalty", type=float, default=0.05, help="Cash penalty proportion")
     parser.add_argument("--reward_weight_pnl", type=float, default=1.0, help="Reward weight for PnL")
-    parser.add_argument("--reward_weight_drawdown", type=float, default=0.5, help="Reward weight for drawdown penalty")
+    parser.add_argument("--reward_weight_drawdown", type=float, default=0.2, help="Reward weight for drawdown penalty")
     parser.add_argument("--continuous_drawdown_penalty", action="store_true", help="Use continuous instead of incremental drawdown penalty")
     
     args = parser.parse_args()

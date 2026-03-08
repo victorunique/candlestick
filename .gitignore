@@ -63,3 +63,4 @@ logs/
 trained_models/
 results/
 data/
+history/

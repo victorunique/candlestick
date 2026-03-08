@@ -10,6 +10,7 @@ All components have been rewritten following Test-Driven Development (TDD) princ
 ├── pyproject.toml
 ├── src
 │   ├── data_fetcher.py               # Fetches Yahoo Finance data
+│   ├── history_collector.py          # Periodic 1-min OHLCV collector (cron-scheduled)
 │   ├── feature_engineer.py           # Calculates 23 technical indicators (ATR, MACD, RSI, etc.)
 │   ├── env_stocktrading.py           # Custom Gym environment with dynamic stop-loss  
 │   ├── custom_models.py              # CNN1DFeaturesExtractor PyTorch model
@@ -21,6 +22,7 @@ All components have been rewritten following Test-Driven Development (TDD) princ
 │   └── generate_report.py            # Generates a static HTML report with dataset info and graphs
 ├── tests                             # Pytest unit tests for every component
 │   ├── test_data_fetcher.py
+│   ├── test_history_collector.py
 │   ├── test_feature_engineer.py
 │   ├── test_env_stocktrading.py
 │   ├── test_custom_models.py
@@ -174,3 +176,65 @@ episode_length,ppo_return,ppo_max_dd,fsl_return,fsl_max_dd,bh_return,bh_max_dd
 ```
 
 Each combo runs in an isolated temp directory that is cleaned up afterwards, ensuring no state leakage between runs.
+
+## Continuous 1-Minute Data Collection
+
+The `history_collector` module periodically fetches **1-minute OHLCV data** from Yahoo Finance and saves it as per-ticker, per-day CSV files. This is useful because Yahoo Finance's API sometimes provides inconsistent historical coverage for 1-minute data — continuous collection over time builds a reliable long-term dataset.
+
+### How It Works
+
+- For each configured ticker and each day in the lookback window, it checks whether a CSV file already exists.
+- If the file exists → skip.
+- If the file is missing → fetch from Yahoo Finance via `data_fetcher.py` and save.
+- On non-trading days (weekends, holidays), Yahoo Finance returns no data. The collector logs a warning and moves on — **no empty files are created**.
+
+### Storage Format
+
+Files are saved as:
+```
+<TICKER>_<YYYY-MM-DD>_1m.csv
+```
+
+Example:
+```
+history/
+├── AAPL_2026-03-03_1m.csv
+├── AAPL_2026-03-04_1m.csv
+├── TSLA_2026-03-03_1m.csv
+└── TSLA_2026-03-04_1m.csv
+```
+
+### CLI Usage
+
+```bash
+uv run python -m src.history_collector \
+  --tickers AAPL TSLA MSFT META AMZN GOOGL \
+  --data_dir ./history \
+  --lookback_days 7
+```
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `--tickers` | Yes | — | Space-separated list of ticker symbols |
+| `--data_dir` | Yes | — | Directory to store CSV files |
+| `--lookback_days` | No | `7` | Number of days to look back (including today) |
+
+### Scheduling with Cron (Ubuntu)
+
+The script runs **once per invocation** and exits. Use cron to schedule it every 6 hours:
+
+```bash
+crontab -e
+```
+
+Add the following line (adjust paths as needed):
+
+```cron
+0 */6 * * * cd /path/to/candlestick && uv run python -m src.history_collector --tickers AAPL TSLA MSFT META AMZN GOOGL --data_dir ./history >> ./history/collector.log 2>&1
+```
+
+This ensures:
+- Data is checked and fetched 4 times daily.
+- Output is appended to `./history/collector.log`.
+- The process is stateless — safe to restart or reschedule at any time.
+
