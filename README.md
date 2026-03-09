@@ -230,7 +230,7 @@ crontab -e
 Add the following line (adjust paths as needed):
 
 ```cron
-0 */6 * * * cd /path/to/candlestick && uv run python -m src.history_collector --tickers AAPL TSLA MSFT META AMZN GOOGL --data_dir ./history >> ./history/collector.log 2>&1
+0 */6 * * * cd /path/to/candlestick && /home/yourusername/.local/bin/uv run python -m src.history_collector --tickers AAPL TSLA MSFT META AMZN GOOGL --data_dir ./history >> ./history/collector.log 2>&1
 ```
 
 This ensures:
