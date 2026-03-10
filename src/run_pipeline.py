@@ -147,7 +147,48 @@ def generate_combinations(
     return combos
 
 
-def build_commands(combo: dict, work_dir: str) -> list[list[str]]:
+def load_local_history(tickers: list[str], start_date: str, end_date: str, data_dir: str, output_path: str) -> None:
+    import pandas as pd
+    from datetime import datetime, timedelta
+
+    start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
+    end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+    dates = []
+    curr = start_dt
+    while curr < end_dt:
+        dates.append(curr)
+        curr += timedelta(days=1)
+
+    df_list = []
+    for tic in tickers:
+        for d in dates:
+            filename = f"{tic}_{d.isoformat()}_1m.csv"
+            filepath = os.path.join(data_dir, filename)
+            if os.path.exists(filepath):
+                try:
+                    df = pd.read_csv(filepath, dtype={"date": str})
+                    if not df.empty:
+                        df_list.append(df)
+                except Exception as e:
+                    print(f"Warning: failed to read {filepath}: {e}")
+
+    if not df_list:
+        raise ValueError(f"No local history data found for {tickers} from {start_date} to {end_date} in {data_dir}")
+
+    final_df = pd.concat(df_list, axis=0, ignore_index=True)
+    if "date" in final_df.columns:
+        final_df = final_df.sort_values(by=["date", "tic"]).reset_index(drop=True)
+
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    required_cols = ["date", "open", "high", "low", "close", "volume", "tic"]
+    existing_cols = [c for c in required_cols if c in final_df.columns]
+    final_df = final_df[existing_cols]
+
+    final_df.to_csv(output_path, index=False)
+
+
+def build_commands(combo: dict, work_dir: str, use_local_history: bool = False, local_history_dir: str = "./history") -> list[list[str]]:
     """Build the 6 subprocess commands for a single combo.
 
     Returns a list of 6 command lists:
@@ -171,14 +212,21 @@ def build_commands(combo: dict, work_dir: str) -> list[list[str]]:
     cmds = []
 
     # 0: fetch training data
-    cmds.append([
-        "uv", "run", "python", "-m", "src.data_fetcher",
-        "--start_date", combo["train_start"],
-        "--end_date", combo["train_end"],
-        "--ticker_list", *tickers,
-        "--output_path", train_raw,
-        "--interval", FIXED_INTERVAL,
-    ])
+    if use_local_history:
+        cmds.append([
+            "uv", "run", "python", "-m", "src.run_pipeline", "local_load",
+            ",".join(tickers), combo["train_start"], combo["train_end"],
+            local_history_dir, train_raw
+        ])
+    else:
+        cmds.append([
+            "uv", "run", "python", "-m", "src.data_fetcher",
+            "--start_date", combo["train_start"],
+            "--end_date", combo["train_end"],
+            "--ticker_list", *tickers,
+            "--output_path", train_raw,
+            "--interval", FIXED_INTERVAL,
+        ])
 
     # 1: feature engineer training data
     cmds.append([
@@ -188,14 +236,21 @@ def build_commands(combo: dict, work_dir: str) -> list[list[str]]:
     ])
 
     # 2: fetch test data
-    cmds.append([
-        "uv", "run", "python", "-m", "src.data_fetcher",
-        "--start_date", combo["test_start"],
-        "--end_date", combo["test_end"],
-        "--ticker_list", *tickers,
-        "--output_path", test_raw,
-        "--interval", FIXED_INTERVAL,
-    ])
+    if use_local_history:
+        cmds.append([
+            "uv", "run", "python", "-m", "src.run_pipeline", "local_load",
+            ",".join(tickers), combo["test_start"], combo["test_end"],
+            local_history_dir, test_raw
+        ])
+    else:
+        cmds.append([
+            "uv", "run", "python", "-m", "src.data_fetcher",
+            "--start_date", combo["test_start"],
+            "--end_date", combo["test_end"],
+            "--ticker_list", *tickers,
+            "--output_path", test_raw,
+            "--interval", FIXED_INTERVAL,
+        ])
 
     # 3: feature engineer test data
     cmds.append([
@@ -304,6 +359,14 @@ def main():
         "--start-from", type=int, default=1,
         help="1-based combo index to start from (skip earlier combos).",
     )
+    parser.add_argument(
+        "--use-local-history", action="store_true", default=False,
+        help="Load raw training and testing data directly from a local folder instead of Yahoo Finance API.",
+    )
+    parser.add_argument(
+        "--local-history-dir", type=str, default="./history",
+        help="Path to the local history folder (default: ./history).",
+    )
 
     args = parser.parse_args()
 
@@ -338,7 +401,11 @@ def main():
 
         # Build commands using a placeholder work_dir for dry-run display
         work_dir = f"<temp_dir_combo_{idx}>" if args.dry_run else tempfile.mkdtemp(prefix=f"candlestick_combo{idx}_")
-        cmds = build_commands(combo, work_dir=work_dir)
+        cmds = build_commands(            combo, 
+            work_dir=work_dir,
+            use_local_history=args.use_local_history,
+            local_history_dir=args.local_history_dir,
+        )
 
         step_labels = [
             "Fetch training data",
@@ -428,4 +495,14 @@ def main():
 
 
 if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "local_load":
+        load_local_history(
+            tickers=sys.argv[2].split(","),
+            start_date=sys.argv[3],
+            end_date=sys.argv[4],
+            data_dir=sys.argv[5],
+            output_path=sys.argv[6]
+        )
+        sys.exit(0)
     main()

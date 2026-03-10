@@ -167,6 +167,13 @@ uv run python -m src.run_pipeline --output ./results/hparam_results.csv
 uv run python -m src.run_pipeline --start-from 5 --output ./results/hparam_results.csv
 ```
 
+#### Using local history data
+To run the pipeline using locally collected 1-minute historical data (from `history_collector.py`) instead of querying Yahoo Finance every time, use the following flags:
+```bash
+uv run python -m src.run_pipeline --use-local-history --local-history-dir ./history --output ./results/hparam_results.csv
+```
+This is especially useful since the Yahoo Finance API cannot provide 1-minute level data earlier than 30 calendar days.
+
 #### Output CSV format
 
 ```
