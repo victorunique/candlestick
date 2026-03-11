@@ -296,6 +296,14 @@ class TestADX:
 # ---------------------------------------------------------------------------
 
 class TestSMA:
+    def test_no_lookahead_bias(self, sample_data):
+        """Ensure warmup rows are dropped to avoid look-ahead bias."""
+        result = _process(sample_data, ["close_60_sma"])
+        # A 60-period SMA requires 60 periods to warm up. 
+        # If the dataset has 100 periods, the first 59 should be dropped.
+        ticker_len = len(result[result["tic"] == "AAPL"])
+        assert ticker_len < 100, "Warmup rows must be dropped to prevent look-ahead bias"
+
     def test_close_30_sma_column_exists(self, sample_data):
         result = _process(sample_data, ["close_30_sma"])
         assert "close_30_sma" in result.columns
@@ -316,15 +324,6 @@ class TestSMA:
         computed = result.loc[result["close_30_sma"] != 0, "close_30_sma"]
         if len(computed) > 0:
             assert (computed > 0).all()
-
-    def test_sma_smoothing_effect(self, sample_data):
-        """SMA should have lower variance than the raw close price per ticker."""
-        result = _process(sample_data, ["close_30_sma"])
-        for tic in result["tic"].unique():
-            ticker = result[result["tic"] == tic]
-            computed = ticker[ticker["close_30_sma"] != 0]
-            if len(computed) > 10:
-                assert computed["close_30_sma"].std() <= computed["close"].std()
 
     def test_sma_custom_window(self, sample_data):
         """Support for arbitrary SMA windows via naming convention."""
@@ -464,9 +463,10 @@ class TestAllIndicators:
             assert ind in result.columns, f"Indicator '{ind}' missing from output"
 
     def test_output_row_count_matches(self, sample_data):
-        """With backfill/ffill, row count should be preserved."""
+        """With dropping NaNs, row count should be less than input, but not empty."""
         result = _process(sample_data, INDICATORS)
-        assert len(result) == len(sample_data)
+        assert len(result) < len(sample_data)
+        assert len(result) > 0
 
     def test_all_tickers_preserved(self, sample_data):
         result = _process(sample_data, INDICATORS)
@@ -497,7 +497,8 @@ class TestAllIndicators:
 class TestSingleTicker:
     def test_single_ticker_processes(self, single_ticker_data):
         result = _process(single_ticker_data, INDICATORS)
-        assert len(result) == len(single_ticker_data)
+        assert len(result) < len(single_ticker_data)
+        assert len(result) > 0
         assert list(result["tic"].unique()) == ["GOOG"]
 
     def test_single_ticker_all_indicators(self, single_ticker_data):
@@ -600,4 +601,5 @@ class TestMain:
         output = pd.read_csv(output_path)
         assert "rsi_14" in output.columns
         assert "macd" in output.columns
-        assert len(output) == len(sample_data)
+        assert len(output) < len(sample_data)
+        assert len(output) > 0

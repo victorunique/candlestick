@@ -128,10 +128,10 @@ class FeatureEngineer:
                 if ind not in group.columns:
                     group[ind] = 0.0
                 
-            # Fill missing values created by rolling windows with backfill then forward fill
-            group.bfill(inplace=True)
+            # Forward fill any true isolated gaps, but drop the initial warmup rows
+            # instead of backfilling them, which causes look-ahead bias.
             group.ffill(inplace=True)
-            group.fillna(0, inplace=True)
+            group.dropna(inplace=True)
             
             return group
             
