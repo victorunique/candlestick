@@ -53,7 +53,13 @@ Every script provides a `--help` interface. You can string them together as foll
 ### 1. Fetch Data
 Downloads raw stock price data and formats it correctly.
 ```bash
-uv run python -m src.data_fetcher --start_date 2020-01-01 --end_date 2025-06-30 --ticker_list AAPL MSFT TSLA META AMZN GOOGL --output_path ./data/data_training.csv --interval 1d
+uv run python -m src.data_fetcher --start_date 2020-01-01 --end_date 2025-06-30 --ticker_list AAPL MSFT TSLA META AMZN GOOGL --output_path ./data/data_training.csv --interval 1m
+```
+
+### 1b. Load Local Data (Alternative)
+Manually fetches 1-minute historical data collected from the local `history_collector.py` dataset, bypassing Yahoo Finance requirements constraints.
+```bash
+uv run python -m src.data_loader --start_date 2026-02-09 --end_date 2026-02-28 --ticker_list AAPL MSFT TSLAMETA AMZN GOOGL --data_dir ./history --output_path ./data/data_training.csv
 ```
 
 ### 2. Feature Engineering

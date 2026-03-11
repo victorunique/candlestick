@@ -4,7 +4,7 @@ import yfinance as yf
 from datetime import datetime
 
 class DataFetcher:
-    def __init__(self, start_date: str, end_date: str, ticker_list: list, interval: str = "1d"):
+    def __init__(self, start_date: str, end_date: str, ticker_list: list, interval: str = "1m"):
         self.start_date = start_date
         self.end_date = end_date
         self.ticker_list = ticker_list
@@ -115,7 +115,7 @@ if __name__ == "__main__":
     parser.add_argument("--ticker_list", type=str, nargs="+", required=True, help="List of ticker symbols")
     parser.add_argument("--output_path", type=str, default=None, help="Output CSV path (default: ./data_<timestamp>.csv)")
     parser.add_argument("--auto_adjust", action="store_true", help="Enable yfinance auto_adjust logic")
-    parser.add_argument("--interval", type=str, default="1d", help="Data granularity (e.g., 1d, 1m, 1h)")
+    parser.add_argument("--interval", type=str, default="1m", help="Data granularity (e.g., 1m, 1h, 1d)")
 
     args = parser.parse_args()
 
