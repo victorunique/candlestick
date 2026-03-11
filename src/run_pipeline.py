@@ -13,52 +13,17 @@ Results are appended incrementally to a CSV file for later analysis.
 import argparse
 import csv
 import itertools
+import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PARAMETER GRID — edit these lists to define the search space
+# PARAMETER GRID — loaded from JSON configuration file
 # ═══════════════════════════════════════════════════════════════════════════
-
-# Each tuple: (train_start, train_end, test_start, test_end)
-DATE_RANGES = [
-    ("2026-02-09", "2026-02-28", "2026-03-02", "2026-03-03"),
-    ("2026-02-10", "2026-03-03", "2026-03-03", "2026-03-04"),
-    ("2026-02-11", "2026-03-04", "2026-03-04", "2026-03-05"),
-    ("2026-02-12", "2026-03-05", "2026-03-05", "2026-03-06"),
-    ("2026-02-13", "2026-03-06", "2026-03-06", "2026-03-07"),
-    ("2026-02-09", "2026-02-21", "2026-02-23", "2026-02-24"),
-    ("2026-02-10", "2026-02-24", "2026-02-24", "2026-02-25"),
-    ("2026-02-11", "2026-02-25", "2026-02-25", "2026-02-26"),
-    ("2026-02-12", "2026-02-26", "2026-02-26", "2026-02-27"),
-    ("2026-02-13", "2026-02-27", "2026-02-27", "2026-02-28"),
-    ("2026-02-09", "2026-02-14", "2026-02-17", "2026-02-18"),
-    ("2026-02-10", "2026-02-18", "2026-02-18", "2026-02-19"),
-    ("2026-02-11", "2026-02-19", "2026-02-19", "2026-02-20"),
-    ("2026-02-12", "2026-02-20", "2026-02-20", "2026-02-21"),
-    ("2026-02-13", "2026-02-21", "2026-02-23", "2026-02-24"),
-]
-
-# Each element is a list of tickers (same list used for train & test)
-TICKER_LISTS = [
-    ["AAPL"],
-    ["MSFT"],
-    ["NVDA"],
-]
-
-TOTAL_TIMESTEPS_LIST = [300000]
-
-REWARD_WEIGHT_PNL_LIST = [1.0]
-REWARD_WEIGHT_DRAWDOWN_LIST = [0.2]
-
-N_STEPS_LIST = [2048]
-ENT_COEF_LIST = [0.01]
-LEARNING_RATE_LIST = [0.0001]
-GAMMA_LIST = [0.99]
-EPISODE_LENGTH_LIST = [1000]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -324,6 +289,10 @@ def main():
         help="Print all combos and commands without executing anything.",
     )
     parser.add_argument(
+        "--config", type=str, default="run_pipeline_config.json",
+        help="Path to the JSON configuration file containing hyperparameters (default: run_pipeline_config.json).",
+    )
+    parser.add_argument(
         "--output", type=str, default="./results/hparam_results.csv",
         help="Path to the incremental results CSV (default: ./results/hparam_results.csv).",
     )
@@ -342,17 +311,24 @@ def main():
 
     args = parser.parse_args()
 
+    if not os.path.exists(args.config):
+        print(f"Error: Configuration file not found at {args.config}")
+        sys.exit(1)
+
+    with open(args.config, "r") as f:
+        config = json.load(f)
+
     combos = generate_combinations(
-        date_ranges=DATE_RANGES,
-        ticker_lists=TICKER_LISTS,
-        total_timesteps_list=TOTAL_TIMESTEPS_LIST,
-        reward_weight_pnl_list=REWARD_WEIGHT_PNL_LIST,
-        reward_weight_drawdown_list=REWARD_WEIGHT_DRAWDOWN_LIST,
-        n_steps_list=N_STEPS_LIST,
-        ent_coef_list=ENT_COEF_LIST,
-        learning_rate_list=LEARNING_RATE_LIST,
-        gamma_list=GAMMA_LIST,
-        episode_length_list=EPISODE_LENGTH_LIST,
+        date_ranges=config["date_ranges"],
+        ticker_lists=config["ticker_lists"],
+        total_timesteps_list=config.get("total_timesteps_list", [300000]),
+        reward_weight_pnl_list=config.get("reward_weight_pnl_list", [1.0]),
+        reward_weight_drawdown_list=config.get("reward_weight_drawdown_list", [0.2]),
+        n_steps_list=config.get("n_steps_list", [2048]),
+        ent_coef_list=config.get("ent_coef_list", [0.01]),
+        learning_rate_list=config.get("learning_rate_list", [0.0001]),
+        gamma_list=config.get("gamma_list", [0.99]),
+        episode_length_list=config.get("episode_length_list", [1000]),
     )
 
     total = len(combos)
@@ -374,7 +350,7 @@ def main():
         # Build commands using a placeholder work_dir for dry-run display
         work_dir = f"<temp_dir_combo_{idx}>" if args.dry_run else tempfile.mkdtemp(prefix=f"candlestick_combo{idx}_")
         cmds = build_commands(
-            combo, 
+            combo,
             work_dir=work_dir,
             use_local_history=args.use_local_history,
             local_history_dir=args.local_history_dir,

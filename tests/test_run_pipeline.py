@@ -1,11 +1,10 @@
 """Tests for src.run_pipeline – hyperparameter tuning pipeline."""
 
-import csv
+import json
 import os
 import subprocess
 import sys
 import tempfile
-from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -300,14 +299,33 @@ class TestDryRunCli:
 
     def test_dry_run_prints_combos_and_exits(self):
         """--dry-run should succeed, print combo info, and not create temp dirs."""
-        result = subprocess.run(
-            [sys.executable, "-m", "src.run_pipeline", "--dry-run"],
-            capture_output=True,
-            text=True,
-            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        )
-        assert result.returncode == 0
-        # Should contain at least one "Combo" line
-        assert "Combo" in result.stdout or "combo" in result.stdout.lower()
-        # Should contain "uv run" commands
-        assert "uv run" in result.stdout
+        config_data = {
+            "date_ranges": [["2020-01-01", "2020-06-30", "2020-07-01", "2020-12-31"]],
+            "ticker_lists": [["AAPL"]],
+            "total_timesteps_list": [10000],
+            "reward_weight_pnl_list": [1.0],
+            "reward_weight_drawdown_list": [0.5],
+            "n_steps_list": [2048],
+            "ent_coef_list": [0.01],
+            "learning_rate_list": [0.00025],
+            "gamma_list": [0.99],
+            "episode_length_list": [1000]
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(config_data, f)
+            config_path = f.name
+
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "src.run_pipeline", "--dry-run", "--config", config_path],
+                capture_output=True,
+                text=True,
+                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            )
+            assert result.returncode == 0
+            # Should contain at least one "Combo" line
+            assert "Combo" in result.stdout or "combo" in result.stdout.lower()
+            # Should contain "uv run" commands
+            assert "uv run" in result.stdout
+        finally:
+            os.remove(config_path)

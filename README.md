@@ -145,27 +145,27 @@ Automates the entire 4-step pipeline (fetch → feature-engineer → train → b
 
 #### Configure the grid
 
-Edit the `*_LIST` constants at the top of `src/run_pipeline.py`:
+Edit the `run_pipeline_config.json` file in the root directory to specify the search space:
 
 | Variable | Description |
 |---|---|
-| `DATE_RANGES` | List of `(train_start, train_end, test_start, test_end)` tuples |
-| `TICKER_LISTS` | List of ticker lists (shared for train & test) |
-| `TOTAL_TIMESTEPS_LIST` | Training timesteps |
-| `REWARD_WEIGHT_PNL_LIST` | Reward weight for PnL |
-| `REWARD_WEIGHT_DRAWDOWN_LIST` | Reward weight for drawdown penalty |
-| `N_STEPS_LIST`, `ENT_COEF_LIST`, `LEARNING_RATE_LIST`, `GAMMA_LIST`, `EPISODE_LENGTH_LIST` | PPO hyperparameters |
+| `date_ranges` | List of `[train_start, train_end, test_start, test_end]` lists |
+| `ticker_lists` | List of ticker lists (shared for train & test) |
+| `total_timesteps_list` | Training timesteps |
+| `reward_weight_pnl_list` | Reward weight for PnL |
+| `reward_weight_drawdown_list` | Reward weight for drawdown penalty |
+| `n_steps_list`, `ent_coef_list`, `learning_rate_list`, `gamma_list`, `episode_length_list` | PPO hyperparameters |
 
 Fixed values (not part of the grid): `interval=1m`, `seed=42`, `fixed_stoploss_ratio=0.95`, `initial_amount=1000000`.
 
 #### Preview combinations (dry run)
 ```bash
-uv run python -m src.run_pipeline --dry-run
+uv run python -m src.run_pipeline --dry-run --config run_pipeline_config.json
 ```
 
 #### Run the full grid
 ```bash
-uv run python -m src.run_pipeline --output ./results/hparam_results.csv
+uv run python -m src.run_pipeline --config run_pipeline_config.json --output ./results/hparam_results.csv
 ```
 
 #### Resume from a specific combo
