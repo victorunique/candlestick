@@ -192,6 +192,22 @@ class TestBuildCommands:
         assert "AAPL" in cmd_str
         assert "MSFT" in cmd_str
 
+    def test_warmup_start_date_for_test_data(self):
+        """Test data fetcher should use a date 5 days before test_start_date."""
+        combo = self._make_combo()
+        combo["test_start"] = "2020-07-01"
+        cmds = build_commands(combo, work_dir="/tmp/test")
+        
+        # Test Data Fetcher Command -> Index 2
+        fetch_cmd_str = " ".join(cmds[2])
+        # Test start is "2020-07-01", minus 5 days is "2020-06-26"
+        assert "--start_date 2020-06-26" in fetch_cmd_str
+
+        # Feature Engineer Test Command -> Index 3
+        fe_cmd_str = " ".join(cmds[3])
+        # feature engineer should receive the original test_start as filter
+        assert "--start_date 2020-07-01" in fe_cmd_str
+
 
 # ---------------------------------------------------------------------------
 # parse_plaintext_output

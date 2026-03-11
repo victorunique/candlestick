@@ -30,7 +30,7 @@ def test_build_commands_with_local_history():
     # 2nd command should fetch test data from local using data_loader
     test_cmd = " ".join(cmds[2])
     assert "src.data_loader" in test_cmd
-    assert "--start_date 2026-02-13" in test_cmd
+    assert "--start_date 2026-02-08" in test_cmd
     assert "--end_date 2026-02-14" in test_cmd
     assert "--ticker_list AAPL MSFT" in test_cmd
     assert "--data_dir ./history" in test_cmd

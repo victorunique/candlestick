@@ -67,6 +67,7 @@ Processes the raw data and calculates technical indicators. Default indicators i
 ```bash
 uv run python -m src.feature_engineer --input_path ./data/data_training.csv --output_path ./data/data_training_preprocessed.csv
 ```
+You can also supply `--start_date YYYY-MM-DD` to discard rows prior to a specific date after calculating the indicator (useful for removing a "warm-up" look-back period from testing datasets to avoid look-ahead bias).
 
 ### 3. Train the Agent
 Initializes the trading environment and trains the PPO agent with 1D CNN extraction. Saves the `.zip` model and the `_vecnormalize.pkl` stats.
@@ -142,6 +143,8 @@ uv run python -m src.generate_report \
 ### 8. Hyperparameter Tuning Pipeline
 
 Automates the entire 4-step pipeline (fetch → feature-engineer → train → backtest) across a grid of hyperparameters, accumulating results into a single CSV.
+
+**Note:** To cleanly avoid look-ahead bias without penalizing the testing dataset length natively, the pipeline dynamically provisions a 5-day "warm-up" data lookback explicitly for the backtesting fetcher which is later truncated strictly to the intended test dates iteratively via `feature_engineer.py`'s `--start_date` functionality.
 
 #### Configure the grid
 
