@@ -148,7 +148,6 @@ def main():
     parser.add_argument("--input_path", type=str, required=True, help="Path to input raw CSV data.")
     parser.add_argument("--output_path", type=str, required=True, help="Path to save preprocessed CSV data.")
     parser.add_argument("--indicator_list", type=str, nargs="+", default=INDICATORS, help="List of indicators to compute.")
-    parser.add_argument("--start_date", type=str, default=None, help="Filter out data before this date (YYYY-MM-DD)")
 
     args = parser.parse_args()
 
@@ -161,10 +160,6 @@ def main():
 
     fe = FeatureEngineer(indicators=args.indicator_list)
     processed_df = fe.preprocess_data(df)
-
-    if args.start_date:
-        print(f"Filtering data to start from {args.start_date}...")
-        processed_df = processed_df[processed_df["date"] >= args.start_date].reset_index(drop=True)
 
     # Ensure output directory exists
     os.makedirs(os.path.dirname(os.path.abspath(args.output_path)), exist_ok=True)

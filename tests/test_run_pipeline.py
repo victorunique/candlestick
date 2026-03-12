@@ -171,6 +171,20 @@ class TestBuildCommands:
         cmd_str = " ".join(cmds[5])
         assert "--plaintext" in cmd_str
 
+    def test_train_ppo_has_train_start(self):
+        """Training command must include --train_start."""
+        cmds = build_commands(self._make_combo(), work_dir="/tmp/test")
+        cmd_str = " ".join(cmds[4])
+        assert "--train_start" in cmd_str
+        assert "2020-01-01" in cmd_str
+
+    def test_backtest_has_test_start(self):
+        """Backtest command must include --test_start."""
+        cmds = build_commands(self._make_combo(), work_dir="/tmp/test")
+        cmd_str = " ".join(cmds[5])
+        assert "--test_start" in cmd_str
+        assert "2020-07-01" in cmd_str
+
     def test_backtest_has_fixed_stoploss(self):
         """Backtest command must include --fixed_stoploss_ratio 0.95."""
         cmds = build_commands(self._make_combo(), work_dir="/tmp/test")
@@ -205,8 +219,8 @@ class TestBuildCommands:
 
         # Feature Engineer Test Command -> Index 3
         fe_cmd_str = " ".join(cmds[3])
-        # feature engineer should receive the original test_start as filter
-        assert "--start_date 2020-07-01" in fe_cmd_str
+        # feature engineer no longer receives start_date
+        assert "--start_date" not in fe_cmd_str
 
     def test_warmup_start_date_for_train_data(self):
         """Train data fetcher should use a date 5 days before train_start_date."""
@@ -221,8 +235,8 @@ class TestBuildCommands:
 
         # Feature Engineer Train Command -> Index 1
         fe_cmd_str = " ".join(cmds[1])
-        # feature engineer should receive the original train_start as filter
-        assert "--start_date 2020-01-01" in fe_cmd_str
+        # feature engineer no longer receives start_date
+        assert "--start_date" not in fe_cmd_str
 
 
 # ---------------------------------------------------------------------------

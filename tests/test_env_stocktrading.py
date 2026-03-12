@@ -1,7 +1,6 @@
 import pytest
 import pandas as pd
 import numpy as np
-import gymnasium as gym
 from src.env_stocktrading import StockTradingEnv
 
 @pytest.fixture
@@ -56,7 +55,8 @@ def env_kwargs():
         "cash_penalty_proportion": 0.1,
         "patient": True,
         "random_start": False,
-        "episode_length": -1
+        "episode_length": -1,
+        "window_size": 10
     }
 
 def test_env_init(mock_stock_data, env_kwargs):
@@ -68,13 +68,17 @@ def test_env_init(mock_stock_data, env_kwargs):
 def test_env_reset(mock_stock_data, env_kwargs):
     env = StockTradingEnv(df=mock_stock_data, **env_kwargs)
     state, info = env.reset()
-    assert isinstance(state, list) or isinstance(state, np.ndarray)
+    assert isinstance(state, np.ndarray)
     
-    # State length: cash (1) + holdings (2) + features (2 assets * 9 cols = 18) = 21
-    assert len(state) == 21 
-    assert state[0] == 1000000  # initial cash
-    assert state[1] == 0  # AAPL holdings
-    assert state[2] == 0  # MSFT holdings
+    # State shape should be (window_size, state_space)
+    # state_space length: cash (1) + holdings (2) + features (2 assets * 9 cols = 18) = 21
+    assert state.shape == (10, 21)
+    
+    # Check the most recent step (last row of the 2D array)
+    last_step = state[-1]
+    assert last_step[0] == 1000000  # initial cash
+    assert last_step[1] == 0  # AAPL holdings
+    assert last_step[2] == 0  # MSFT holdings
 
 def test_env_step_buy(mock_stock_data, env_kwargs):
     env = StockTradingEnv(df=mock_stock_data, **env_kwargs)
@@ -86,8 +90,11 @@ def test_env_step_buy(mock_stock_data, env_kwargs):
     
     next_state, reward, done, truncated, info = env.step(action)
     
-    cash = next_state[0]
-    holdings = next_state[1:3]
+    assert next_state.shape == (10, 21)
+    
+    last_step = next_state[-1]
+    cash = last_step[0]
+    holdings = last_step[1:3]
     
     assert holdings[0] > 0
     assert holdings[1] == 0
@@ -109,7 +116,8 @@ def test_env_stoploss_trigger(mock_stock_data, env_kwargs):
     action = np.array([0.0, 0.0, 0.9, 0.9])
     next_state, reward, done, truncated, info = env.step(action)
     
-    holdings = next_state[1:3]
+    last_step = next_state[-1]
+    holdings = last_step[1:3]
     # Stoploss should have fired and sold all AAPL
     assert holdings[0] == 0
 
@@ -136,7 +144,8 @@ def test_stoploss_executes_at_threshold_price(mock_stock_data, env_kwargs):
     action = np.array([0.0, 0.0, 0.9, 0.9])
     next_state, reward, done, truncated, info = env.step(action)
 
-    cash_after_sl = next_state[0]
+    last_step = next_state[-1]
+    cash_after_sl = last_step[0]
     sl_threshold_price = 200.0 * 0.9  # = 180.0
     expected_gross_proceeds = aapl_holdings * sl_threshold_price
     sell_cost = expected_gross_proceeds * env.sell_cost_pct
@@ -168,7 +177,8 @@ def test_stoploss_no_trigger_when_low_above_threshold(mock_stock_data, env_kwarg
     action = np.array([0.0, 0.0, 0.9, 0.9])  # hold
     next_state, _, _, _, _ = env.step(action)
 
-    aapl_holdings_after = next_state[1]
+    last_step = next_state[-1]
+    aapl_holdings_after = last_step[1]
     assert aapl_holdings_after == aapl_holdings_before, (
         f"SL should not trigger when low (105) > threshold (90), "
         f"but holdings changed from {aapl_holdings_before} to {aapl_holdings_after}"

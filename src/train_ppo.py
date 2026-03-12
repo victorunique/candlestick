@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack, VecNormalize
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import BaseCallback
 
@@ -62,6 +62,7 @@ def train_ppo(
     model_dir: str, 
     model_name: str,
     indicators: list,
+    train_start: str = None,
     window_size: int = 60,
     n_steps: int = 2048,
     ent_coef: float = 0.01,
@@ -80,6 +81,16 @@ def train_ppo(
     os.makedirs(model_dir, exist_ok=True)
     df = align_ticker_timestamps(df)
 
+    if train_start:
+        unique_dates = df["date"].sort_values().unique()
+        matches = np.where(unique_dates >= train_start)[0]
+        if len(matches) > 0:
+            warmup_steps = int(matches[0])
+        else:
+            warmup_steps = 0
+    else:
+        warmup_steps = window_size - 1
+
     env_train_kwargs = {
         "hmax": hmax,
         "initial_amount": 1000000,
@@ -96,12 +107,13 @@ def train_ppo(
         "incremental_drawdown_penalty": incremental_drawdown_penalty,
         "patient": True,
         "episode_length": episode_length,
+        "window_size": window_size,
+        "warmup_steps": warmup_steps,
         "random_start": True
     }
     
     e_train_gym = DummyVecEnv([lambda: Monitor(StockTradingEnv(df=df, **env_train_kwargs))])
-    e_train_stacked = VecFrameStack(e_train_gym, n_stack=window_size)
-    e_train_normalized = VecNormalize(e_train_stacked, norm_obs=True, norm_reward=True, clip_obs=10.0)
+    e_train_normalized = VecNormalize(e_train_gym, norm_obs=True, norm_reward=True, clip_obs=10.0)
     
     if torch.backends.mps.is_available():
         device = "mps"
@@ -167,6 +179,7 @@ def main():
     parser.add_argument("--model_name", type=str, default="ppo_trading_agent", help="Name of the saved model")
     parser.add_argument("--total_timesteps", type=int, default=300000, help="Total training timesteps")
     parser.add_argument("--indicators", type=str, nargs="+", default=INDICATORS, help="List of indicators used in data")
+    parser.add_argument("--train_start", type=str, default=None, help="Start date/time for training actually begins")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     
     # Train Hyperparameters
@@ -204,6 +217,7 @@ def main():
         model_dir=args.model_dir,
         model_name=args.model_name,
         indicators=args.indicators,
+        train_start=args.train_start,
         window_size=args.window_size,
         n_steps=args.n_steps,
         ent_coef=args.ent_coef,

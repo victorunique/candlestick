@@ -7,7 +7,7 @@ import tempfile
 from unittest.mock import patch
 
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import VecNormalize, VecFrameStack
+from stable_baselines3.common.vec_env import VecNormalize, DummyVecEnv
 
 from src.train_ppo import train_ppo, set_seeds, main
 
@@ -40,7 +40,7 @@ def sample_preprocessed_data():
     
 def test_train_ppo(sample_preprocessed_data):
     with tempfile.TemporaryDirectory() as temp_dir:
-        val_df = sample_preprocessed_data.copy()
+        model_name = "test_ppo_model"
         
         model_name = "test_ppo_model"
         
@@ -65,10 +65,10 @@ def test_train_ppo(sample_preprocessed_data):
 
 
 class TestVecWrapperOrder:
-    """Bug 1: VecNormalize must wrap VecFrameStack (not the other way around).
+    """Bug 1: VecNormalize must wrap DummyVecEnv directly.
     
-    The correct order is DummyVecEnv → VecFrameStack → VecNormalize so that
-    normalization statistics match the stacked observation shape the model sees.
+    The correct order is DummyVecEnv → VecNormalize so that
+    normalization statistics match the windowed observation shape natively produced by the model.
     """
 
     def test_returned_env_is_vecnormalize(self, sample_preprocessed_data):
@@ -86,8 +86,8 @@ class TestVecWrapperOrder:
                 f"Expected outermost wrapper to be VecNormalize, got {type(env).__name__}"
             )
 
-    def test_vecnormalize_wraps_vecframestack(self, sample_preprocessed_data):
-        """VecNormalize.venv should be a VecFrameStack (correct inner wrapper)."""
+    def test_vecnormalize_wraps_dummyvecenv(self, sample_preprocessed_data):
+        """VecNormalize.venv should be a DummyVecEnv (correct inner wrapper)."""
         with tempfile.TemporaryDirectory() as temp_dir:
             _, env = train_ppo(
                 df=sample_preprocessed_data,
@@ -98,12 +98,12 @@ class TestVecWrapperOrder:
                 window_size=10,
             )
             inner = env.venv  # VecNormalize's inner env
-            assert isinstance(inner, VecFrameStack), (
-                f"Expected VecNormalize to wrap VecFrameStack, but inner is {type(inner).__name__}"
+            assert isinstance(inner, DummyVecEnv), (
+                f"Expected VecNormalize to wrap DummyVecEnv, but inner is {type(inner).__name__}"
             )
 
-    def test_normalization_stats_match_stacked_obs(self, sample_preprocessed_data):
-        """VecNormalize running mean shape should match the stacked observation shape."""
+    def test_normalization_stats_match_windowed_obs(self, sample_preprocessed_data):
+        """VecNormalize running mean shape should match the windowed observation shape."""
         window_size = 10
         with tempfile.TemporaryDirectory() as temp_dir:
             _, env = train_ppo(
@@ -118,7 +118,7 @@ class TestVecWrapperOrder:
             norm_mean_shape = env.obs_rms.mean.shape
             assert norm_mean_shape == obs_shape, (
                 f"VecNormalize stats shape {norm_mean_shape} != observation shape {obs_shape}. "
-                "This indicates VecNormalize was applied before VecFrameStack."
+                "This indicates VecNormalize tracking dimension breakage."
             )
 
 
@@ -151,7 +151,7 @@ class TestSeedReproducibility:
             p1 = self._get_model_params(m1)
             p2 = self._get_model_params(m2)
             np.testing.assert_allclose(p1, p2, rtol=1e-5, atol=1e-5,
-                err_msg="Same seed should produce identical weights")
+                                       err_msg="Same seed should produce identical weights")
 
     def test_different_seed_produces_different_weights(self, sample_preprocessed_data):
         """Training with different seeds should produce different model weights."""
@@ -187,6 +187,7 @@ class TestCLIArgsForwarded:
             "--data_path", "dummy.csv",
             "--model_dir", "/tmp/test_model",
             "--model_name", "cli_test",
+            "--train_start", "2024-01-15",
             "--total_timesteps", "100",
             "--seed", "7",
             "--window_size", "5",
@@ -213,6 +214,7 @@ class TestCLIArgsForwarded:
         kw = mock_train.call_args
         # Check all arguments are present (either positional or keyword)
         _, kwargs = kw
+        assert kwargs["train_start"] == "2024-01-15"
         assert kwargs["n_steps"] == 4096
         assert kwargs["hmax"] == 50000
         assert kwargs["stoploss_penalty"] == 0.85

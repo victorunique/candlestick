@@ -5,7 +5,7 @@ import argparse
 
 import torch
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack, VecNormalize
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from src.data_utils import align_ticker_timestamps
 from src.env_stocktrading import StockTradingEnv
@@ -15,6 +15,7 @@ def baseline_buy_and_hold(
     df: pd.DataFrame,
     initial_amount: float = 1_000_000,
     buy_cost_pct: float = 0.0001,
+    test_start: str = None,
 ) -> pd.DataFrame:
     """Equal-weight buy-and-hold baseline over the same data period.
 
@@ -23,6 +24,9 @@ def baseline_buy_and_hold(
     Returns a DataFrame with columns ["date", "total_assets"].
     """
     df = align_ticker_timestamps(df)
+    if test_start:
+        df = df[df["date"] >= test_start].copy()
+        
     tickers = sorted(df["tic"].unique())
     dates = sorted(df["date"].unique())
     n_tickers = len(tickers)
@@ -51,6 +55,7 @@ def backtest_fixed_stoploss(
     df: pd.DataFrame,
     model_path: str,
     indicators: list,
+    test_start: str = None,
     window_size: int = 60,
     fixed_stoploss_ratio: float = 0.95,
     hmax: int = 100000,
@@ -65,6 +70,17 @@ def backtest_fixed_stoploss(
     Returns a DataFrame with columns ["total_assets", ...].
     """
     df = align_ticker_timestamps(df)
+
+    unique_dates = df["date"].sort_values().unique()
+    if test_start:
+        matches = np.where(unique_dates >= test_start)[0]
+        if len(matches) > 0:
+            warmup_steps = int(matches[0])
+        else:
+            warmup_steps = 0
+    else:
+        warmup_steps = window_size - 1
+
     env_kwargs = {
         "hmax": hmax,
         "initial_amount": 1000000,
@@ -78,11 +94,12 @@ def backtest_fixed_stoploss(
         "cash_penalty_proportion": cash_penalty,
         "patient": True,
         "episode_length": -1,
+        "window_size": window_size,
+        "warmup_steps": warmup_steps,
         "random_start": False,
     }
 
     env_raw = DummyVecEnv([lambda: StockTradingEnv(df=df, **env_kwargs)])
-    env_stacked = VecFrameStack(env_raw, n_stack=window_size)
 
     vec_normalize_path = f"{model_path}_vecnormalize.pkl"
     if not os.path.exists(vec_normalize_path):
@@ -90,7 +107,7 @@ def backtest_fixed_stoploss(
             f"Normalization statistics not found at {vec_normalize_path}"
         )
 
-    env_norm = VecNormalize.load(vec_normalize_path, env_stacked)
+    env_norm = VecNormalize.load(vec_normalize_path, env_raw)
     env_norm.training = False
     env_norm.norm_reward = False
 
@@ -105,9 +122,9 @@ def backtest_fixed_stoploss(
 
     obs = env_norm.reset()
     n_assets = len(sorted(df["tic"].unique()))
-    max_steps = len(df["date"].unique()) - 1
+    max_steps = len(unique_dates) - warmup_steps - 1
 
-    for i in range(len(df["date"].unique())):
+    for i in range(max_steps + 1):
         action, _states = trained_ppo.predict(obs, deterministic=True)
         # Override the stop-loss portion with the fixed ratio
         action[0, n_assets:] = fixed_stoploss_ratio
@@ -115,7 +132,7 @@ def backtest_fixed_stoploss(
         if i >= max_steps or dones[0]:
             break
 
-    actual_env = env_norm.venv.venv.envs[0]
+    actual_env = env_norm.venv.envs[0]
     df_account_value = actual_env.save_asset_memory()
 
     if df_account_value is None:
@@ -132,6 +149,7 @@ def backtest(
     model_path: str,
     results_dir: str,
     indicators: list,
+    test_start: str = None,
     window_size: int = 60,
     hmax: int = 100000,
     stoploss_penalty: float = 0.9,
@@ -142,6 +160,16 @@ def backtest(
 ):
     os.makedirs(results_dir, exist_ok=True)
     df = align_ticker_timestamps(df)
+
+    unique_dates = df["date"].sort_values().unique()
+    if test_start:
+        matches = np.where(unique_dates >= test_start)[0]
+        if len(matches) > 0:
+            warmup_steps = int(matches[0])
+        else:
+            warmup_steps = 0
+    else:
+        warmup_steps = window_size - 1
 
     # Needs matching parameters to training env shape
     env_test_kwargs = {
@@ -157,17 +185,18 @@ def backtest(
         "cash_penalty_proportion": cash_penalty,
         "patient": True,
         "episode_length": -1,  # Run to end
+        "window_size": window_size,
+        "warmup_steps": warmup_steps,
         "random_start": False  # Start at beginning
     }
     
     e_trade_gym = DummyVecEnv([lambda: StockTradingEnv(df=df, **env_test_kwargs)])
-    e_trade_stacked = VecFrameStack(e_trade_gym, n_stack=window_size)
     
     vec_normalize_path = f"{model_path}_vecnormalize.pkl"
     if not os.path.exists(vec_normalize_path):
         raise FileNotFoundError(f"Normalization statistics not found at {vec_normalize_path}")
         
-    e_trade_normalized = VecNormalize.load(vec_normalize_path, e_trade_stacked)
+    e_trade_normalized = VecNormalize.load(vec_normalize_path, e_trade_gym)
     e_trade_normalized.training = False
     e_trade_normalized.norm_reward = False
     
@@ -184,9 +213,9 @@ def backtest(
     
     print("Running backtest...")
     obs = e_trade_normalized.reset()
-    max_steps = len(df["date"].unique()) - 1
+    max_steps = len(unique_dates) - warmup_steps - 1
     
-    for i in range(len(df["date"].unique())):
+    for i in range(max_steps + 1):
         action, _states = trained_ppo.predict(obs, deterministic=True)
         obs, rewards, dones, info = e_trade_normalized.step(action)
         
@@ -195,7 +224,7 @@ def backtest(
             break
             
     # Access inner unwrapped environment for state logs
-    actual_env = e_trade_normalized.venv.venv.envs[0]
+    actual_env = e_trade_normalized.venv.envs[0]
     df_account_value = actual_env.save_asset_memory()
     df_actions = actual_env.save_action_memory()
 
@@ -217,7 +246,8 @@ def backtest(
 
     # --- Buy-and-Hold baseline ---
     df_baseline = baseline_buy_and_hold(
-        df, initial_amount=initial_value, buy_cost_pct=env_test_kwargs['buy_cost_pct']
+        df, initial_amount=initial_value, buy_cost_pct=env_test_kwargs['buy_cost_pct'],
+        test_start=test_start
     )
     bl_final = df_baseline["total_assets"].iloc[-1]
     bl_return = ((bl_final - initial_value) / initial_value) * 100
@@ -232,6 +262,7 @@ def backtest(
         df=df,
         model_path=model_path,
         indicators=indicators,
+        test_start=test_start,
         window_size=window_size,
         fixed_stoploss_ratio=fixed_stoploss_ratio,
         hmax=hmax,
@@ -287,6 +318,7 @@ def main():
     parser.add_argument("--model_path", type=str, required=True, help="Path to the trained model (without .zip)")
     parser.add_argument("--results_dir", type=str, default="./results", help="Directory to save backtest CSVs")
     parser.add_argument("--indicators", type=str, nargs="+", default=INDICATORS, help="List of indicators used in data")
+    parser.add_argument("--test_start", type=str, default=None, help="Start date/time for backtesting actually begins")
     parser.add_argument("--window_size", type=int, default=60, help="CNN1D Window size")
     parser.add_argument("--fixed_stoploss_ratio", type=float, default=0.95,
                         help="Fixed stop-loss ratio for comparison strategy (0.5-1.0)")
@@ -306,6 +338,7 @@ def main():
         model_path=args.model_path,
         results_dir=args.results_dir,
         indicators=args.indicators,
+        test_start=args.test_start,
         window_size=args.window_size,
         fixed_stoploss_ratio=args.fixed_stoploss_ratio,
         plaintext=args.plaintext,

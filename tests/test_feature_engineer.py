@@ -604,32 +604,4 @@ class TestMain:
         assert len(output) < len(sample_data)
         assert len(output) > 0
 
-    def test_main_with_start_date_filter(self, sample_data, tmp_path):
-        """main() should filter rows correctly when --start_date is provided."""
-        import sys
-        from unittest.mock import patch
-        from src.feature_engineer import main
 
-        input_path = str(tmp_path / "input.csv")
-        output_path = str(tmp_path / "output.csv")
-        sample_data.to_csv(input_path, index=False)
-
-        # Let's filter to rows starting from '2024-03-01'
-        test_start_date = "2024-03-01"
-
-        fake_args = [
-            "feature_engineer.py",
-            "--input_path", input_path,
-            "--output_path", output_path,
-            "--indicator_list", "rsi_14", "macd",
-            "--start_date", test_start_date,
-        ]
-        with patch.object(sys, "argv", fake_args):
-            main()
-
-        output = pd.read_csv(output_path)
-        assert "rsi_14" in output.columns
-        assert "macd" in output.columns
-        # verify dates are purely on or after test_start_date
-        assert (output["date"] >= test_start_date).all()
-        assert len(output) > 0

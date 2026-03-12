@@ -34,6 +34,8 @@ class StockTradingEnv(gym.Env):
         patient=False,
         currency="$",
         episode_length=-1,
+        window_size=1,
+        warmup_steps=0,
         reward_weight_pnl=1.0,
         reward_weight_drawdown=0.5,
         incremental_drawdown_penalty=True,
@@ -42,9 +44,17 @@ class StockTradingEnv(gym.Env):
         self.incremental_drawdown_penalty = incremental_drawdown_penalty
         self.stock_col = "tic"
         self.assets = sorted(df[self.stock_col].unique())
-        self.timestamps = df[timestamp_col_name].sort_values().unique()
+        
+        all_timestamps = df[timestamp_col_name].sort_values().unique()
+        self.warmup_steps = warmup_steps
+        if self.warmup_steps > 0:
+            self.timestamps = all_timestamps[self.warmup_steps:]
+        else:
+            self.timestamps = all_timestamps
+            
         self.random_start = random_start
         self.episode_length = episode_length
+        self.window_size = window_size
         self.discrete_actions = discrete_actions
         self.patient = patient
         self.currency = currency
@@ -80,9 +90,14 @@ class StockTradingEnv(gym.Env):
         
         self.action_space = spaces.Box(low=low, high=high, shape=(action_dim,), dtype=np.float32)
         
-        self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(self.state_space,), dtype=np.float32
-        )
+        if self.window_size > 1:
+            self.observation_space = spaces.Box(
+                low=-np.inf, high=np.inf, shape=(self.window_size, self.state_space), dtype=np.float32
+            )
+        else:
+            self.observation_space = spaces.Box(
+                low=-np.inf, high=np.inf, shape=(self.state_space,), dtype=np.float32
+            )
 
         self.episode = -1 
         self.episode_history = []
@@ -109,11 +124,12 @@ class StockTradingEnv(gym.Env):
             )
             pivot_df = pivot_df.reindex(columns=expected_cols)
 
-            n_steps = len(self.timestamps)
+            # Note: cached_data stores ALL timestamps including warmup.
+            n_steps_all = len(all_timestamps)
             n_assets = len(self.assets)
             n_features = len(self.feature_columns)
             
-            self.cached_data = pivot_df.values.reshape(n_steps, n_assets, n_features)
+            self.cached_data = pivot_df.values.reshape(n_steps_all, n_assets, n_features)
             self.col_map = {col: i for i, col in enumerate(self.feature_columns)}
             # print(f"data cached! Shape: {self.cached_data.shape}")
             
@@ -163,31 +179,47 @@ class StockTradingEnv(gym.Env):
         init_state = np.array(
             [self.initial_amount]
             + [0] * len(self.assets)
-            + self.get_step_vector(self.step_index)
+            + self.get_step_vector(self.step_index), dtype=np.float32
         )
         self.state_memory.append(init_state)
-        return init_state, {}
+        return self.get_full_state(), {}
 
-    def get_step_vector(self, step, cols=None):
+    def get_full_state(self):
+        """Builds a 2D array of the past `window_size` steps. Uses actual historical data for history before starting_point."""
+        if self.window_size <= 1:
+            return np.array(self.state_memory[-1], dtype=np.float32)
+            
+        start_idx = self.step_index - self.window_size + 1
+        state_vectors = []
+        for i in range(start_idx, self.step_index + 1):
+            if i < self.starting_point:
+                # Actual historical data exists because i is relative to self.timestamps, 
+                # meaning i = -1 is the last warmup step.
+                actual_i = i + self.warmup_steps
+                features = self.get_step_vector_by_absolute_index(max(0, actual_i))
+                vec = np.array([self.initial_amount] + [0] * len(self.assets) + features, dtype=np.float32)
+                state_vectors.append(vec)
+            else:
+                mem_idx = i - self.starting_point
+                state_vectors.append(np.array(self.state_memory[mem_idx], dtype=np.float32))
+                
+        return np.vstack(state_vectors)
+
+    def get_step_vector_by_absolute_index(self, abs_step, cols=None):
         if self.cached_data is not None:
             if cols is None:
-                return self.cached_data[step].flatten().tolist()
+                return self.cached_data[abs_step].flatten().tolist()
             else:
                 col_indices = [self.col_map[c] for c in cols]
-                return self.cached_data[step, :, col_indices].flatten().tolist()
+                return self.cached_data[abs_step, :, col_indices].flatten().tolist()
         else:
-            ts = self.timestamps[step]
-            if cols is None:
-                cols = self.feature_columns
-            trunc_df = self.df.loc[[ts]]
-            v = []
-            for a in self.assets:
-                subset = trunc_df[trunc_df[self.stock_col] == a]
-                v += subset.loc[ts, cols].tolist()
-            return v
+            raise NotImplementedError("Fetching without cache by absolute index not implemented")
+
+    def get_step_vector(self, step, cols=None):
+        return self.get_step_vector_by_absolute_index(step + self.warmup_steps, cols)
 
     def return_terminal(self, reason="Last Date", reward=0):
-        state = self.state_memory[-1]
+        state = self.get_full_state()
         self.log_step(reason=reason, terminal_reward=reward)
         self.final_asset_memory = self.save_asset_memory()
         self.final_action_memory = self.save_action_memory()
@@ -358,11 +390,11 @@ class StockTradingEnv(gym.Env):
         self.account_information["reward"].append(reward)
 
         next_state = np.array(
-            [coh] + list(holdings_updated) + self.get_step_vector(self.step_index)
+            [coh] + list(holdings_updated) + self.get_step_vector(self.step_index), dtype=np.float32
         )
         self.state_memory.append(next_state)
 
-        return next_state, reward, False, truncated, {}
+        return self.get_full_state(), reward, False, truncated, {}
 
     def save_asset_memory(self):
         if self.current_step == 0:

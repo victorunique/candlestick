@@ -176,7 +176,6 @@ def build_commands(combo: dict, work_dir: str, use_local_history: bool = False, 
         "uv", "run", "python", "-m", "src.feature_engineer",
         "--input_path", train_raw,
         "--output_path", train_preprocessed,
-        "--start_date", combo["train_start"],
     ])
 
     # 2: fetch test data
@@ -204,7 +203,6 @@ def build_commands(combo: dict, work_dir: str, use_local_history: bool = False, 
         "uv", "run", "python", "-m", "src.feature_engineer",
         "--input_path", test_raw,
         "--output_path", test_preprocessed,
-        "--start_date", combo["test_start"],
     ])
 
     # 4: train PPO
@@ -213,6 +211,7 @@ def build_commands(combo: dict, work_dir: str, use_local_history: bool = False, 
         "--data_path", train_preprocessed,
         "--model_dir", model_dir,
         "--model_name", MODEL_NAME,
+        "--train_start", combo["train_start"],
         "--total_timesteps", str(combo["total_timesteps"]),
         "--seed", str(FIXED_SEED),
         "--n_steps", str(combo["n_steps"]),
@@ -230,6 +229,7 @@ def build_commands(combo: dict, work_dir: str, use_local_history: bool = False, 
         "--data_path", test_preprocessed,
         "--model_path", model_path,
         "--results_dir", results_dir,
+        "--test_start", combo["test_start"],
         "--plaintext",
         "--fixed_stoploss_ratio", str(FIXED_STOPLOSS_RATIO),
     ])

@@ -67,12 +67,12 @@ Processes the raw data and calculates technical indicators. Default indicators i
 ```bash
 uv run python -m src.feature_engineer --input_path ./data/data_training.csv --output_path ./data/data_training_preprocessed.csv
 ```
-You can also supply `--start_date YYYY-MM-DD` to discard rows prior to a specific date after calculating the indicator (useful for removing a "warm-up" look-back period from testing datasets to avoid look-ahead bias).
+You can optionally supply `--indicator_list` to override the defaults. (*Note: The `--start_date` parameter was removed; calculating indicators no longer clips the start of the data.*)
 
 ### 3. Train the Agent
-Initializes the trading environment and trains the PPO agent with 1D CNN extraction. Saves the `.zip` model and the `_vecnormalize.pkl` stats.
+Initializes the trading environment and trains the PPO agent with 1D CNN extraction. Saves the `.zip` model and the `_vecnormalize.pkl` stats. Note the `--train_start` parameter, which is used to tell the agent exactly which date to start trading from (it will look back `window_size - 1` days natively for the CNN).
 ```bash
-uv run python -m src.train_ppo --data_path ./data/data_training_preprocessed.csv --model_dir ./trained_models --model_name my_ppo_bot --total_timesteps 10000 --seed 42
+uv run python -m src.train_ppo --data_path ./data/data_training_preprocessed.csv --model_dir ./trained_models --model_name my_ppo_bot --train_start 2020-01-01 --total_timesteps 10000 --seed 42
 ```
 Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profit_loss_ratio`, `--cash_penalty`, `--reward_weight_pnl`, `--reward_weight_drawdown`. Run `--help` for details.
 
@@ -83,11 +83,11 @@ uv run python -m src.plot_training_curve --log_path trained_models/my_ppo_bot_tr
 ```
 
 ### 5. Backtesting
-Loads the trained model and normalizer, predicting actions on the dataset and calculating PnL.
+Loads the trained model and normalizer, predicting actions on the dataset and calculating PnL. Like `--train_start`, use `--test_start` to tell the environment the date to begin its first trading step.
 ```bash
 # In practice, you should fetch new data for backtesting (e.g. 2024-06-01 to 2024-09-01) 
 # and process it through feature_engineer.py first.
-uv run python -m src.backtest --data_path ./data/data_testing_preprocessed.csv --model_path ./trained_models/my_ppo_bot --results_dir ./results
+uv run python -m src.backtest --data_path ./data/data_testing_preprocessed.csv --model_path ./trained_models/my_ppo_bot --results_dir ./results --test_start 2024-06-01
 ```
 Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profit_loss_ratio`, `--cash_penalty`, `--window_size`, `--fixed_stoploss_ratio`. Run `--help` for details.
 
@@ -144,7 +144,7 @@ uv run python -m src.generate_report \
 
 Automates the entire 4-step pipeline (fetch → feature-engineer → train → backtest) across a grid of hyperparameters, accumulating results into a single CSV.
 
-**Note:** To cleanly avoid look-ahead bias without penalizing the dataset length natively, the pipeline dynamically provisions a 5-day "warm-up" data lookback explicitly for the training and backtesting fetchers which is later truncated strictly to the intended train and test dates iteratively via `feature_engineer.py`'s `--start_date` functionality.
+**Note:** To cleanly avoid look-ahead bias without penalizing the dataset length, the pipeline dynamically provisions a 5-day "warm-up" data lookback explicitly for the training and backtesting fetchers. The data is sliced chronologically natively inside `train_ppo.py` and `backtest.py` based on `window_size` rather than relying on `VecFrameStack`.
 
 #### Configure the grid
 
