@@ -208,6 +208,22 @@ class TestBuildCommands:
         # feature engineer should receive the original test_start as filter
         assert "--start_date 2020-07-01" in fe_cmd_str
 
+    def test_warmup_start_date_for_train_data(self):
+        """Train data fetcher should use a date 5 days before train_start_date."""
+        combo = self._make_combo()
+        combo["train_start"] = "2020-01-01"
+        cmds = build_commands(combo, work_dir="/tmp/test")
+        
+        # Train Data Fetcher Command -> Index 0
+        fetch_cmd_str = " ".join(cmds[0])
+        # Train start is "2020-01-01", minus 5 days is "2019-12-27"
+        assert "--start_date 2019-12-27" in fetch_cmd_str
+
+        # Feature Engineer Train Command -> Index 1
+        fe_cmd_str = " ".join(cmds[1])
+        # feature engineer should receive the original train_start as filter
+        assert "--start_date 2020-01-01" in fe_cmd_str
+
 
 # ---------------------------------------------------------------------------
 # parse_plaintext_output

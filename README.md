@@ -144,7 +144,7 @@ uv run python -m src.generate_report \
 
 Automates the entire 4-step pipeline (fetch → feature-engineer → train → backtest) across a grid of hyperparameters, accumulating results into a single CSV.
 
-**Note:** To cleanly avoid look-ahead bias without penalizing the testing dataset length natively, the pipeline dynamically provisions a 5-day "warm-up" data lookback explicitly for the backtesting fetcher which is later truncated strictly to the intended test dates iteratively via `feature_engineer.py`'s `--start_date` functionality.
+**Note:** To cleanly avoid look-ahead bias without penalizing the dataset length natively, the pipeline dynamically provisions a 5-day "warm-up" data lookback explicitly for the training and backtesting fetchers which is later truncated strictly to the intended train and test dates iteratively via `feature_engineer.py`'s `--start_date` functionality.
 
 #### Configure the grid
 

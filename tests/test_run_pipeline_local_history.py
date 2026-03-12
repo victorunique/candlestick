@@ -1,5 +1,4 @@
 from src.run_pipeline import build_commands
-from src.run_pipeline import build_commands
 
 def test_build_commands_with_local_history():
     combo = {
@@ -22,7 +21,7 @@ def test_build_commands_with_local_history():
     # 0th command should fetch train data from local using data_loader
     train_cmd = " ".join(cmds[0])
     assert "src.data_loader" in train_cmd
-    assert "--start_date 2026-02-06" in train_cmd
+    assert "--start_date 2026-02-01" in train_cmd
     assert "--end_date 2026-02-13" in train_cmd
     assert "--ticker_list AAPL MSFT" in train_cmd
     assert "--data_dir ./history" in train_cmd

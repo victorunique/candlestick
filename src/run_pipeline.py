@@ -142,8 +142,12 @@ def build_commands(combo: dict, work_dir: str, use_local_history: bool = False, 
     tickers = combo["tickers"]
 
     test_start_dt = datetime.strptime(combo["test_start"], "%Y-%m-%d")
-    warmup_start_dt = test_start_dt - timedelta(days=5)
-    warmup_start_str = warmup_start_dt.strftime("%Y-%m-%d")
+    test_warmup_start_dt = test_start_dt - timedelta(days=5)
+    test_warmup_start_str = test_warmup_start_dt.strftime("%Y-%m-%d")
+
+    train_start_dt = datetime.strptime(combo["train_start"], "%Y-%m-%d")
+    train_warmup_start_dt = train_start_dt - timedelta(days=5)
+    train_warmup_start_str = train_warmup_start_dt.strftime("%Y-%m-%d")
 
     cmds = []
 
@@ -151,7 +155,7 @@ def build_commands(combo: dict, work_dir: str, use_local_history: bool = False, 
     if use_local_history:
         cmds.append([
             "uv", "run", "python", "-m", "src.data_loader",
-            "--start_date", combo["train_start"],
+            "--start_date", train_warmup_start_str,
             "--end_date", combo["train_end"],
             "--ticker_list", *tickers,
             "--data_dir", local_history_dir,
@@ -160,7 +164,7 @@ def build_commands(combo: dict, work_dir: str, use_local_history: bool = False, 
     else:
         cmds.append([
             "uv", "run", "python", "-m", "src.data_fetcher",
-            "--start_date", combo["train_start"],
+            "--start_date", train_warmup_start_str,
             "--end_date", combo["train_end"],
             "--ticker_list", *tickers,
             "--output_path", train_raw,
@@ -172,13 +176,14 @@ def build_commands(combo: dict, work_dir: str, use_local_history: bool = False, 
         "uv", "run", "python", "-m", "src.feature_engineer",
         "--input_path", train_raw,
         "--output_path", train_preprocessed,
+        "--start_date", combo["train_start"],
     ])
 
     # 2: fetch test data
     if use_local_history:
         cmds.append([
             "uv", "run", "python", "-m", "src.data_loader",
-            "--start_date", warmup_start_str,
+            "--start_date", test_warmup_start_str,
             "--end_date", combo["test_end"],
             "--ticker_list", *tickers,
             "--data_dir", local_history_dir,
@@ -187,7 +192,7 @@ def build_commands(combo: dict, work_dir: str, use_local_history: bool = False, 
     else:
         cmds.append([
             "uv", "run", "python", "-m", "src.data_fetcher",
-            "--start_date", warmup_start_str,
+            "--start_date", test_warmup_start_str,
             "--end_date", combo["test_end"],
             "--ticker_list", *tickers,
             "--output_path", test_raw,
