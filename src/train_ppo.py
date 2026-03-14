@@ -188,7 +188,7 @@ def main():
     parser.add_argument("--ent_coef", type=float, default=0.01)
     parser.add_argument("--learning_rate", type=float, default=0.0001)
     parser.add_argument("--gamma", type=float, default=0.99)
-    parser.add_argument("--episode_length", type=int, default=1000)
+    parser.add_argument("--episode_length", type=int, default=500)
     
     # Environment Hyperparameters
     parser.add_argument("--hmax", type=int, default=100000, help="Max number of shares to trade")

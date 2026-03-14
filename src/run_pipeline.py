@@ -339,7 +339,7 @@ def main():
         ent_coef_list=config.get("ent_coef_list", [0.01]),
         learning_rate_list=config.get("learning_rate_list", [0.0001]),
         gamma_list=config.get("gamma_list", [0.99]),
-        episode_length_list=config.get("episode_length_list", [1000]),
+        episode_length_list=config.get("episode_length_list", [500]),
     )
 
     total = len(combos)
