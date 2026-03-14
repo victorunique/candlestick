@@ -140,6 +140,7 @@ uv run python -m src.generate_report \
     --test_data_path data/data_testing_preprocessed.csv \
     --baseline_path results/baseline_buy_and_hold_account_history.csv \
     --fixed_sl_path results/fixed_stoploss_account_history.csv \
+    --train_start 2020-01-01 \
     --test_start 2024-06-01 \
     --output_path results/report.html
 ```

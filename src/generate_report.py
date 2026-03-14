@@ -91,6 +91,8 @@ def generate_report(args):
     train_total_days = "N/A"
     if getattr(args, "train_data_path", None) and os.path.exists(args.train_data_path):
         df_train_data = pd.read_csv(args.train_data_path, parse_dates=["date"])
+        if getattr(args, "train_start", None):
+            df_train_data = df_train_data[df_train_data["date"] >= args.train_start].copy()
         train_tickers = sorted(df_train_data["tic"].unique())
         train_start_date = df_train_data["date"].min().strftime("%Y-%m-%d")
         train_end_date = df_train_data["date"].max().strftime("%Y-%m-%d")
@@ -448,6 +450,10 @@ def main():
     parser.add_argument(
         "--test_start", type=str, default=None,
         help="Start date/time for reporting actually begins (excludes warmup from report)"
+    )
+    parser.add_argument(
+        "--train_start", type=str, default=None,
+        help="Start date/time for training reporting actually begins (excludes warmup from report for training data)"
     )
 
     args = parser.parse_args()

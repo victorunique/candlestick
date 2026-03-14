@@ -74,6 +74,7 @@ def test_generate_report_creates_html(synthetic_csvs, tmp_path):
             self.fixed_stoploss_ratio = 0.95
             self.output_path = output_path
             self.test_start = "2024-01-04"
+            self.train_start = "2024-01-03"
 
     args = Args(acct_path, act_path, log_path, data_path, data_path, baseline_path, acct_path, out_path)
     generate_report(args)
@@ -83,6 +84,9 @@ def test_generate_report_creates_html(synthetic_csvs, tmp_path):
         html = f.read()
 
     assert "Strategy Evaluation Report" in html
+    assert "2024-01-04" in html  # from test_start subset
+    assert "2024-01-03" in html  # from train_start subset
+    assert "2024-01-08" in html  # end date (5 B-days from 2024-01-02)
     assert "AAPL, MSFT" in html
     assert '<img src="data:image/png;base64,' in html
     
