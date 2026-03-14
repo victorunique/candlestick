@@ -73,6 +73,7 @@ def test_generate_report_creates_html(synthetic_csvs, tmp_path):
             self.fixed_sl_path = fixed_sl_path
             self.fixed_stoploss_ratio = 0.95
             self.output_path = output_path
+            self.test_start = "2024-01-04"
 
     args = Args(acct_path, act_path, log_path, data_path, data_path, baseline_path, acct_path, out_path)
     generate_report(args)

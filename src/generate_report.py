@@ -42,6 +42,8 @@ def generate_report(args):
         sys.exit(1)
         
     df_acct = pd.read_csv(args.account_path, parse_dates=["timestamp"])
+    if getattr(args, "test_start", None):
+        df_acct = df_acct[df_acct["timestamp"] >= args.test_start].copy()
     total_assets = df_acct["total_assets"]
     initial_value = total_assets.iloc[0]
     final_val = total_assets.iloc[-1]
@@ -57,6 +59,8 @@ def generate_report(args):
     bl_final = None
     if args.baseline_path and os.path.exists(args.baseline_path):
         df_bl = pd.read_csv(args.baseline_path, parse_dates=["date"])
+        if getattr(args, "test_start", None):
+            df_bl = df_bl[df_bl["date"] >= args.test_start].copy()
         bl_initial = df_bl["total_assets"].iloc[0]
         bl_final = df_bl["total_assets"].iloc[-1]
         baseline_ret_pct = ((bl_final - bl_initial) / bl_initial) * 100
@@ -70,6 +74,8 @@ def generate_report(args):
     fsl_final = None
     if args.fixed_sl_path and os.path.exists(args.fixed_sl_path):
         df_fsl = pd.read_csv(args.fixed_sl_path, parse_dates=["timestamp"])
+        if getattr(args, "test_start", None):
+            df_fsl = df_fsl[df_fsl["timestamp"] >= args.test_start].copy()
         fsl_initial = df_fsl["total_assets"].iloc[0]
         fsl_final = df_fsl["total_assets"].iloc[-1]
         fixed_sl_ret_pct = ((fsl_final - fsl_initial) / fsl_initial) * 100
@@ -97,6 +103,8 @@ def generate_report(args):
     test_total_days = "N/A"
     if getattr(args, "test_data_path", None) and os.path.exists(args.test_data_path):
         df_test_data = pd.read_csv(args.test_data_path, parse_dates=["date"])
+        if getattr(args, "test_start", None):
+            df_test_data = df_test_data[df_test_data["date"] >= args.test_start].copy()
         test_tickers = sorted(df_test_data["tic"].unique())
         test_start_date = df_test_data["date"].min().strftime("%Y-%m-%d")
         test_end_date = df_test_data["date"].max().strftime("%Y-%m-%d")
@@ -120,6 +128,7 @@ def generate_report(args):
         data_path=getattr(args, "test_data_path", None),
         return_figs=True,
         fixed_sl_ratio=args.fixed_stoploss_ratio,
+        test_start=getattr(args, "test_start", None),
     )
     bt_b64s = []
     for fig in bt_figs:
@@ -435,6 +444,10 @@ def main():
     parser.add_argument(
         "--fixed_stoploss_ratio", type=float, default=0.95,
         help="Fixed stop-loss ratio used during backtesting (default: 0.95)"
+    )
+    parser.add_argument(
+        "--test_start", type=str, default=None,
+        help="Start date/time for reporting actually begins (excludes warmup from report)"
     )
 
     args = parser.parse_args()

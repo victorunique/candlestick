@@ -41,6 +41,7 @@ def plot_backtest(
     data_path: str | None = None,
     return_figs: bool = False,
     fixed_sl_ratio: float = 0.95,
+    test_start: str | None = None,
 ):
     # ── Load data ────────────────────────────────────────────────────────
     if not os.path.exists(account_path):
@@ -52,6 +53,10 @@ def plot_backtest(
 
     df_acct = pd.read_csv(account_path, parse_dates=["timestamp"])
     df_act = pd.read_csv(action_path, parse_dates=["timestamp"])
+
+    if test_start:
+        df_acct = df_acct[df_acct["timestamp"] >= test_start].copy()
+        df_act = df_act[df_act["timestamp"] >= test_start].copy()
 
     # Parse the stringified arrays in transactions column
     df_act["transactions_parsed"] = df_act["transactions"].apply(_parse_array_str)
@@ -106,6 +111,8 @@ def plot_backtest(
     # Overlay fixed stop-loss strategy if provided
     if fixed_sl_path and os.path.exists(fixed_sl_path):
         df_fsl = pd.read_csv(fixed_sl_path, parse_dates=["timestamp"])
+        if test_start:
+            df_fsl = df_fsl[df_fsl["timestamp"] >= test_start].copy()
         ax.plot(
             df_fsl["timestamp"], df_fsl["total_assets"],
             color="purple", linewidth=1.5, linestyle=":",
@@ -115,6 +122,8 @@ def plot_backtest(
     # Overlay buy-and-hold baseline if provided
     if baseline_path and os.path.exists(baseline_path):
         df_bl = pd.read_csv(baseline_path, parse_dates=["date"])
+        if test_start:
+            df_bl = df_bl[df_bl["date"] >= test_start].copy()
         ax.plot(
             df_bl["date"], df_bl["total_assets"],
             color="darkorange", linewidth=1.5, linestyle="--",
@@ -146,6 +155,8 @@ def plot_backtest(
     # Overlay fixed stop-loss drawdown if provided
     if fixed_sl_path and os.path.exists(fixed_sl_path):
         df_fsl = pd.read_csv(fixed_sl_path, parse_dates=["timestamp"])
+        if test_start:
+            df_fsl = df_fsl[df_fsl["timestamp"] >= test_start].copy()
         fsl_max = df_fsl["total_assets"].cummax()
         fsl_dd = ((df_fsl["total_assets"] - fsl_max) / fsl_max) * 100
         ax.plot(
@@ -157,6 +168,8 @@ def plot_backtest(
     # Overlay buy-and-hold baseline drawdown if provided
     if baseline_path and os.path.exists(baseline_path):
         df_bl = pd.read_csv(baseline_path, parse_dates=["date"])
+        if test_start:
+            df_bl = df_bl[df_bl["date"] >= test_start].copy()
         bl_max = df_bl["total_assets"].cummax()
         bl_dd = ((df_bl["total_assets"] - bl_max) / bl_max) * 100
         ax.plot(
@@ -178,6 +191,8 @@ def plot_backtest(
     if data_path and os.path.exists(data_path):
         # ── Ticker-level close prices with per-ticker buy/sell arrows ──
         df_data = pd.read_csv(data_path, parse_dates=["date"])
+        if test_start:
+            df_data = df_data[df_data["date"] >= test_start].copy()
         tickers = sorted(df_data["tic"].unique())
         price_pivot = df_data.pivot_table(index="date", columns="tic", values="close")
         price_pivot = price_pivot[tickers]  # enforce sorted order
@@ -344,8 +359,12 @@ def main():
         "--data_path", type=str, default=None,
         help="Path to the original preprocessed CSV (with tic/close columns) for per-ticker price chart",
     )
+    parser.add_argument(
+        "--test_start", type=str, default=None,
+        help="Start date/time for reporting actually begins (excludes warmup)",
+    )
     args = parser.parse_args()
-    plot_backtest(args.account_path, args.action_path, args.baseline_path, args.fixed_sl_path, args.save, args.data_path)
+    plot_backtest(args.account_path, args.action_path, args.baseline_path, args.fixed_sl_path, args.save, args.data_path, test_start=args.test_start)
 
 
 if __name__ == "__main__":

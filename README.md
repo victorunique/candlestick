@@ -118,12 +118,15 @@ uv run python -m src.plot_backtest \
     --action_path  results/my_ppo_bot_action_history.csv \
     --baseline_path results/baseline_buy_and_hold_account_history.csv \
     --fixed_sl_path results/fixed_stoploss_account_history.csv \
-    --data_path data/data_testing_preprocessed.csv
+    --data_path data/data_testing_preprocessed.csv \
+    --test_start 2024-06-01
 ```
 
 The `--baseline_path` and `--fixed_sl_path` flags are optional; when provided, their strategy's portfolio value and max drawdown are overlaid on the first two charts for direct comparison.
 
 The `--data_path` flag is optional; when provided, the third graph plots each ticker's actual close price with per-ticker buy/sell arrows. Without it, the graph falls back to plotting the aggregate asset value (market exposure).
+
+The `--test_start` flag is also optional; when provided, the plot will exclude any timestamp prior to the specified date, effectively clipping out the window-size warmup period for a truer representation of the test performance.
 
 ### 7. Generate Static HTML Report
 Create a comprehensive, academic-style static HTML report containing dataset information, performance metrics, and embedded visualizations from backtesting and training.
@@ -137,6 +140,7 @@ uv run python -m src.generate_report \
     --test_data_path data/data_testing_preprocessed.csv \
     --baseline_path results/baseline_buy_and_hold_account_history.csv \
     --fixed_sl_path results/fixed_stoploss_account_history.csv \
+    --test_start 2024-06-01 \
     --output_path results/report.html
 ```
 

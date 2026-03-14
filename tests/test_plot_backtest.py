@@ -291,3 +291,21 @@ def test_plot_backtest_legend_order(synthetic_csvs, tmp_path):
     assert labels[3].startswith("Initial (")
 
     plt.close("all")
+
+
+def test_plot_backtest_with_test_start(synthetic_csvs, tmp_path):
+    """When test_start is provided, the plotting should correctly subset the timeseries data without erroring."""
+    acct_path, act_path, data_path, fsl_path = synthetic_csvs
+    save_path = str(tmp_path / "out_test_start.png")
+
+    plot_backtest(
+        acct_path, act_path,
+        fixed_sl_path=fsl_path,
+        data_path=data_path,
+        save_path=save_path,
+        test_start="2024-01-04"
+    )
+
+    import os
+    assert os.path.exists(save_path)
+    plt.close("all")
