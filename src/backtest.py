@@ -127,7 +127,10 @@ def backtest_fixed_stoploss(
     for i in range(max_steps + 1):
         action, _states = trained_ppo.predict(obs, deterministic=True)
         # Override the stop-loss portion with the fixed ratio
-        action[0, n_assets:] = fixed_stoploss_ratio
+        # Action space is mapped: ratio = 0.75 + action * 0.25
+        # So action = (ratio - 0.75) / 0.25
+        fixed_sl_action = (fixed_stoploss_ratio - 0.75) / 0.25
+        action[0, n_assets:] = fixed_sl_action
         obs, rewards, dones, info = env_norm.step(action)
         if i >= max_steps or dones[0]:
             break

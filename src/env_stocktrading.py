@@ -58,6 +58,7 @@ class StockTradingEnv(gym.Env):
         self.discrete_actions = discrete_actions
         self.patient = patient
         self.currency = currency
+        self.timestamp_col_name = timestamp_col_name
         self.df = self.df.set_index(timestamp_col_name)
         self.shares_increment = shares_increment
         self.hmax = hmax
@@ -83,9 +84,9 @@ class StockTradingEnv(gym.Env):
         
         # Define bounds
         # Trading actions: [-1, 1]
-        # Stoploss ratios: [0.5, 1.0]
+        # Stoploss ratios: [-1, 1] mapped internally to [0.5, 1.0]
         # Note: SB3 will automatically rescale actions to these bounds
-        low = np.concatenate([np.full(n_assets, -1.0, dtype=np.float32), np.full(n_assets, 0.5, dtype=np.float32)])
+        low = np.concatenate([np.full(n_assets, -1.0, dtype=np.float32), np.full(n_assets, -1.0, dtype=np.float32)])
         high = np.concatenate([np.full(n_assets, 1.0, dtype=np.float32), np.full(n_assets, 1.0, dtype=np.float32)])
         
         self.action_space = spaces.Box(low=low, high=high, shape=(action_dim,), dtype=np.float32)
@@ -115,7 +116,7 @@ class StockTradingEnv(gym.Env):
         if self.cache_indicator_data:
             # print("caching data...")
             temp_df = self.df.reset_index()
-            pivot_df = temp_df.pivot(index='date', columns='tic', values=self.feature_columns)
+            pivot_df = temp_df.pivot(index=self.timestamp_col_name, columns='tic', values=self.feature_columns)
             pivot_df.columns = pivot_df.columns.swaplevel(0, 1)
             
             expected_cols = pd.MultiIndex.from_product(
@@ -264,11 +265,13 @@ class StockTradingEnv(gym.Env):
 
         if isinstance(actions, dict):
             trading_actions = actions["trading_actions"].astype(np.float32)
-            stoploss_ratios = actions["stoploss_ratios"].astype(np.float32)
+            sl_actions = actions["stoploss_ratios"].astype(np.float32)
+            stoploss_ratios = 0.75 + sl_actions * 0.25
         else:
             if isinstance(actions, np.ndarray) and actions.shape[0] == 2 * len(self.assets):
                 trading_actions = actions[:len(self.assets)].astype(np.float32)
-                stoploss_ratios = actions[len(self.assets):].astype(np.float32)
+                sl_actions = actions[len(self.assets):].astype(np.float32)
+                stoploss_ratios = 0.75 + sl_actions * 0.25
             else:
                 trading_actions = actions
                 if hasattr(trading_actions, "astype"):
@@ -286,6 +289,7 @@ class StockTradingEnv(gym.Env):
             return self.return_terminal(reward=0)
 
         current_lows = np.array(self.get_step_vector(self.step_index, cols=["low"]))
+        current_opens = np.array(self.get_step_vector(self.step_index, cols=["open"]))
         sl_thresholds = self.avg_buy_price * stoploss_ratios
         sl_hit_mask = (current_lows < sl_thresholds) & (holdings > 0)
         
@@ -313,8 +317,8 @@ class StockTradingEnv(gym.Env):
         actions_final = np.maximum(actions_final, -np.array(holdings))
 
         sells = -np.clip(actions_final, -np.inf, 0)
-        # Use SL threshold price for stop-loss sells, close price for normal sells
-        sell_prices = np.where(sl_hit_mask, sl_thresholds, current_closings)
+        # Use min(open, SL threshold) for stop-loss sells to simulate gap-down slippage, close price for normal sells
+        sell_prices = np.where(sl_hit_mask, np.minimum(current_opens, sl_thresholds), current_closings)
         proceeds = np.dot(sells, sell_prices)
         costs = proceeds * self.sell_cost_pct
         coh = begin_cash + proceeds
@@ -329,7 +333,7 @@ class StockTradingEnv(gym.Env):
                 actions_final = np.where(actions_final > 0, 0, actions_final)
                 spend = 0
                 sells = -np.clip(actions_final, -np.inf, 0)
-                proceeds = np.dot(sells, current_closings)
+                proceeds = np.dot(sells, sell_prices)
                 costs = proceeds * self.sell_cost_pct
                 coh = begin_cash + proceeds
             else:
