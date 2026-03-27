@@ -106,10 +106,9 @@ class StockTradingEnv(gym.Env):
         self.printed_header = False
         self.cache_indicator_data = cache_indicator_data
         self.cached_data = None
-        # NOTE: cash_penalty_proportion is NOT currently used in the reward
-        # function. It is retained for potential future reward shaping, e.g.
-        # function. It is retained to penalize the agent for holding an excessive proportion of the
-        # portfolio in idle cash instead of deploying it into positions, especially if the opportunity cost is high.
+        # Proportion of idle cash to penalize at each step.
+        # Penalizes the agent for holding an excessive proportion of the
+        # portfolio in idle cash instead of deploying it into positions.
         self.cash_penalty_proportion = cash_penalty_proportion
         self.upside_pnl_multiplier = upside_pnl_multiplier
         self.reward_weight_pnl = reward_weight_pnl
