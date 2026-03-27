@@ -51,12 +51,16 @@ def env_kwargs():
         "discrete_actions": False,
         "feature_columns": ["open", "close", "high", "low", "volume", "macd", "rsi_30", "cci_30", "dx_30"],
         "stoploss_penalty": 0.9,
-        "profit_loss_ratio": 2,
-        "cash_penalty_proportion": 0.1,
-        "patient": True,
+        "profit_loss_ratio": 1.5,
+        "cash_penalty_proportion": 0.05,
+        "patient": False,
         "random_start": False,
         "episode_length": -1,
-        "window_size": 10
+        "window_size": 10,
+        "upside_pnl_multiplier": 1.0,
+        "reward_weight_pnl": 1.0,
+        "reward_weight_drawdown": 0.2,
+        "incremental_drawdown_penalty": True,
     }
 
 def test_env_init(mock_stock_data, env_kwargs):
@@ -137,11 +141,13 @@ def test_stoploss_executes_at_threshold_price(mock_stock_data, env_kwargs):
     aapl_holdings = env.state_memory[-1][1]
     cash_after_buy = env.state_memory[-1][0]
 
-    # Stoploss action is 0.9, which maps to ratio = 0.75 + 0.9 * 0.25 = 0.975
-    # Force avg_buy_price to 112.0 so SL threshold = 112.0 * 0.975 = 109.2.
-    # Step 1: AAPL open = 110, low = 105.
-    # Since low (105) < 109.2, SL triggers.
-    # Since open (110) > 109.2, execution price is 109.2 (no gap down).
+    # stoploss_action is mapped to: 0.90 + action(0.9) * 0.10 = 0.99
+    # close price mapping starts as: latest_close(112.0) * 0.99 = 110.88
+    # price drops to 110.0 => should trigger stoploss sell.
+    # Force avg_buy_price to 112.0 so SL threshold = 112.0 * 0.99 = 110.88.
+    # Step 1: AAPL open = 110, low = 110.
+    # Since low (110) <= 110.88, SL triggers.
+    # Since open (110) < 110.88, execution price is 110 (gap down).
     env.avg_buy_price = np.array([112.0, 0.0])
 
     action = np.array([0.0, 0.0, 0.9, 0.9])
@@ -149,13 +155,14 @@ def test_stoploss_executes_at_threshold_price(mock_stock_data, env_kwargs):
 
     last_step = next_state[-1]
     cash_after_sl = last_step[0]
-    
-    # 0.9 SL action maps to 0.975 ratio
-    sl_threshold_price = 112.0 * 0.975  # = 109.2
+    # 0.9 SL action maps to 0.99 ratio (0.90 + 0.9 * 0.10)
+    # sl_threshold = 112.0 * 0.99 = 110.88
+    # Because open(110) < 110.88, the execution price is open = 110.0
+    sl_threshold_price = 110.0
     expected_gross_proceeds = aapl_holdings * sl_threshold_price
     sell_cost = expected_gross_proceeds * env.sell_cost_pct
 
-    # Cash should reflect SL threshold price exactly (109.2), NOT close price (110)
+    # Cash should reflect open price (110.0), NOT SL threshold (110.88)
     expected_cash = cash_after_buy + expected_gross_proceeds - sell_cost
     assert abs(cash_after_sl - expected_cash) < 0.01, (
         f"SL should sell at threshold ${sl_threshold_price}, "

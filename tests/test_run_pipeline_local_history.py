@@ -10,6 +10,8 @@ def test_build_commands_with_local_history():
         "total_timesteps": 10000,
         "reward_weight_pnl": 1.0,
         "reward_weight_drawdown": 0.5,
+        "cash_penalty_proportion": 0.05,
+        "upside_pnl_multiplier": 1.0,
         "n_steps": 2048,
         "ent_coef": 0.01,
         "learning_rate": 0.00025,

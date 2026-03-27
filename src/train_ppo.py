@@ -57,9 +57,9 @@ class RewardLoggingCallback(BaseCallback):
 
 
 def train_ppo(
-    df: pd.DataFrame, 
-    total_timesteps: int, 
-    model_dir: str, 
+    df: pd.DataFrame,
+    total_timesteps: int,
+    model_dir: str,
     model_name: str,
     indicators: list,
     train_start: str = None,
@@ -73,8 +73,9 @@ def train_ppo(
     profit_loss_ratio: float = 1.5,
     cash_penalty: float = 0.05,
     reward_weight_pnl: float = 1.0,
-    reward_weight_drawdown: float = 0.5,
+    reward_weight_drawdown: float = 0.2,
     incremental_drawdown_penalty: bool = True,
+    upside_pnl_multiplier: float = 1.0,
     episode_length: int = 1000,
     seed: int = None
 ):
@@ -102,6 +103,7 @@ def train_ppo(
         "stoploss_penalty": stoploss_penalty,
         "profit_loss_ratio": profit_loss_ratio,
         "cash_penalty_proportion": cash_penalty,
+        "upside_pnl_multiplier": upside_pnl_multiplier,
         "reward_weight_pnl": reward_weight_pnl,
         "reward_weight_drawdown": reward_weight_drawdown,
         "incremental_drawdown_penalty": incremental_drawdown_penalty,
@@ -195,6 +197,7 @@ def main():
     parser.add_argument("--stoploss_penalty", type=float, default=0.9, help="Stop-loss penalty ratio")
     parser.add_argument("--profit_loss_ratio", type=float, default=1.5, help="Profit-to-loss ratio")
     parser.add_argument("--cash_penalty", type=float, default=0.05, help="Cash penalty proportion")
+    parser.add_argument("--upside_pnl_multiplier", type=float, default=1.0, help="Asymmetric upside PnL reward multiplier")
     parser.add_argument("--reward_weight_pnl", type=float, default=1.0, help="Reward weight for PnL")
     parser.add_argument("--reward_weight_drawdown", type=float, default=0.2, help="Reward weight for drawdown penalty")
     parser.add_argument("--continuous_drawdown_penalty", action="store_true", help="Use continuous instead of incremental drawdown penalty")
@@ -230,6 +233,7 @@ def main():
         cash_penalty=args.cash_penalty,
         reward_weight_pnl=args.reward_weight_pnl,
         reward_weight_drawdown=args.reward_weight_drawdown,
+        upside_pnl_multiplier=args.upside_pnl_multiplier,
         incremental_drawdown_penalty=not args.continuous_drawdown_penalty,
         seed=args.seed
     )

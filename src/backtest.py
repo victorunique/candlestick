@@ -62,6 +62,7 @@ def backtest_fixed_stoploss(
     stoploss_penalty: float = 0.9,
     profit_loss_ratio: float = 1.5,
     cash_penalty: float = 0.05,
+    upside_pnl_multiplier: float = 1.0,
 ) -> pd.DataFrame:
     """Re-run the same trained PPO model with a fixed stop-loss ratio.
 
@@ -92,6 +93,7 @@ def backtest_fixed_stoploss(
         "stoploss_penalty": stoploss_penalty,
         "profit_loss_ratio": profit_loss_ratio,
         "cash_penalty_proportion": cash_penalty,
+        "upside_pnl_multiplier": upside_pnl_multiplier,
         "patient": True,
         "episode_length": -1,
         "window_size": window_size,
@@ -127,9 +129,9 @@ def backtest_fixed_stoploss(
     for i in range(max_steps + 1):
         action, _states = trained_ppo.predict(obs, deterministic=True)
         # Override the stop-loss portion with the fixed ratio
-        # Action space is mapped: ratio = 0.75 + action * 0.25
-        # So action = (ratio - 0.75) / 0.25
-        fixed_sl_action = (fixed_stoploss_ratio - 0.75) / 0.25
+        # Action space is mapped: ratio = 0.95 + action * 0.05
+        # So action = (ratio - 0.95) / 0.05
+        fixed_sl_action = (fixed_stoploss_ratio - 0.95) / 0.05
         action[0, n_assets:] = fixed_sl_action
         obs, rewards, dones, info = env_norm.step(action)
         if i >= max_steps or dones[0]:
@@ -158,6 +160,7 @@ def backtest(
     stoploss_penalty: float = 0.9,
     profit_loss_ratio: float = 1.5,
     cash_penalty: float = 0.05,
+    upside_pnl_multiplier: float = 1.0,
     fixed_stoploss_ratio: float = 0.95,
     plaintext: bool = False,
 ):
@@ -186,6 +189,7 @@ def backtest(
         "stoploss_penalty": stoploss_penalty,
         "profit_loss_ratio": profit_loss_ratio,
         "cash_penalty_proportion": cash_penalty,
+        "upside_pnl_multiplier": upside_pnl_multiplier,
         "patient": True,
         "episode_length": -1,  # Run to end
         "window_size": window_size,
@@ -272,6 +276,7 @@ def backtest(
         stoploss_penalty=stoploss_penalty,
         profit_loss_ratio=profit_loss_ratio,
         cash_penalty=cash_penalty,
+        upside_pnl_multiplier=upside_pnl_multiplier,
     )
     fsl_final = df_fixed_sl["total_assets"].iloc[-1]
     fsl_return = ((fsl_final - initial_value) / initial_value) * 100
@@ -323,6 +328,11 @@ def main():
     parser.add_argument("--indicators", type=str, nargs="+", default=INDICATORS, help="List of indicators used in data")
     parser.add_argument("--test_start", type=str, default=None, help="Start date/time for backtesting actually begins")
     parser.add_argument("--window_size", type=int, default=60, help="CNN1D Window size")
+    parser.add_argument("--hmax", type=int, default=100000, help="Max number of shares to trade")
+    parser.add_argument("--stoploss_penalty", type=float, default=0.9, help="Max DD before episode termination penalty")
+    parser.add_argument("--profit_loss_ratio", type=float, default=1.5, help="Profit/Loss ratio for the reward function")
+    parser.add_argument("--cash_penalty", type=float, default=0.05, help="Cash penalty proportion")
+    parser.add_argument("--upside_pnl_multiplier", type=float, default=1.0, help="Asymmetric upside PnL reward multiplier")
     parser.add_argument("--fixed_stoploss_ratio", type=float, default=0.95,
                         help="Fixed stop-loss ratio for comparison strategy (0.5-1.0)")
     parser.add_argument("--plaintext", action="store_true", default=False,
@@ -343,6 +353,11 @@ def main():
         indicators=args.indicators,
         test_start=args.test_start,
         window_size=args.window_size,
+        hmax=args.hmax,
+        stoploss_penalty=args.stoploss_penalty,
+        profit_loss_ratio=args.profit_loss_ratio,
+        cash_penalty=args.cash_penalty,
+        upside_pnl_multiplier=args.upside_pnl_multiplier,
         fixed_stoploss_ratio=args.fixed_stoploss_ratio,
         plaintext=args.plaintext,
     )

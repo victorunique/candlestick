@@ -39,6 +39,7 @@ class StockTradingEnv(gym.Env):
         reward_weight_pnl=1.0,
         reward_weight_drawdown=0.5,
         incremental_drawdown_penalty=True,
+        upside_pnl_multiplier=1.0,
     ):
         self.df = df
         self.incremental_drawdown_penalty = incremental_drawdown_penalty
@@ -107,9 +108,10 @@ class StockTradingEnv(gym.Env):
         self.cached_data = None
         # NOTE: cash_penalty_proportion is NOT currently used in the reward
         # function. It is retained for potential future reward shaping, e.g.
-        # penalising the agent for holding an excessive proportion of the
-        # portfolio in idle cash instead of deploying it into positions.
+        # function. It is retained to penalize the agent for holding an excessive proportion of the
+        # portfolio in idle cash instead of deploying it into positions, especially if the opportunity cost is high.
         self.cash_penalty_proportion = cash_penalty_proportion
+        self.upside_pnl_multiplier = upside_pnl_multiplier
         self.reward_weight_pnl = reward_weight_pnl
         self.reward_weight_drawdown = reward_weight_drawdown
         
@@ -266,12 +268,12 @@ class StockTradingEnv(gym.Env):
         if isinstance(actions, dict):
             trading_actions = actions["trading_actions"].astype(np.float32)
             sl_actions = actions["stoploss_ratios"].astype(np.float32)
-            stoploss_ratios = 0.75 + sl_actions * 0.25
+            stoploss_ratios = 0.95 + sl_actions * 0.05
         else:
             if isinstance(actions, np.ndarray) and actions.shape[0] == 2 * len(self.assets):
                 trading_actions = actions[:len(self.assets)].astype(np.float32)
                 sl_actions = actions[len(self.assets):].astype(np.float32)
-                stoploss_ratios = 0.75 + sl_actions * 0.25
+                stoploss_ratios = 0.95 + sl_actions * 0.05
             else:
                 trading_actions = actions
                 if hasattr(trading_actions, "astype"):
@@ -369,6 +371,9 @@ class StockTradingEnv(gym.Env):
 
         pnl_reward = ((new_total_assets - prev_total_assets) / prev_total_assets) * 1000
         
+        if pnl_reward > 0:
+            pnl_reward *= self.upside_pnl_multiplier
+
         # Update peak and calculate current drawdown
         self.peak_total_assets = max(self.peak_total_assets, new_total_assets)
         current_drawdown = (new_total_assets - self.peak_total_assets) / self.peak_total_assets
@@ -386,7 +391,11 @@ class StockTradingEnv(gym.Env):
         self.prev_drawdown = current_drawdown
         drawdown_penalty = penalized_drawdown * 1000 
         
-        reward = (self.reward_weight_pnl * pnl_reward) + (self.reward_weight_drawdown * drawdown_penalty)
+        # Penalize sitting in cash 
+        cash_ratio = coh / new_total_assets
+        cash_penalty = cash_ratio * self.cash_penalty_proportion * 10 
+        
+        reward = (self.reward_weight_pnl * pnl_reward) + (self.reward_weight_drawdown * drawdown_penalty) - cash_penalty
 
         self.account_information["cash"].append(coh)
         self.account_information["asset_value"].append(new_asset_value)
