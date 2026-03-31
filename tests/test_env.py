@@ -37,8 +37,8 @@ def test_env_bugfixes():
     # Verify holding has been created
     # After step 1: we spent some money.
     
-    # Step 2: Test SL hit with gap-down
-    # Modify the df globally in env for the exact next step so we can trigger a gap down
+    # Step 2: Test SL hit with drop below threshold
+    # Modify the df globally in env for the exact next step so we can trigger a drop below threshold
     # step_index is now 1. Next step accesses data for step_index 1.
     env.df.iloc[(env.df.index == timestamps[2]) & (env.df["tic"] == "AAPL"), env.df.columns.get_loc("low")] = 50.0  # Force a low
     env.df.iloc[(env.df.index == timestamps[2]) & (env.df["tic"] == "AAPL"), env.df.columns.get_loc("open")] = 60.0 # Force an open below the standard 0.75 target!

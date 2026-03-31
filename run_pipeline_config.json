@@ -17,6 +17,8 @@
     "total_timesteps_list": [300000],
     "reward_weight_pnl_list": [1.0],
     "reward_weight_drawdown_list": [0.2],
+    "stoploss_min_list": [0.8],
+    "stoploss_max_list": [1.0],
     "n_steps_list": [2048],
     "ent_coef_list": [0.01],
     "learning_rate_list": [0.0001],

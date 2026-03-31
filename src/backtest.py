@@ -59,8 +59,8 @@ def backtest_fixed_stoploss(
     window_size: int = 60,
     fixed_stoploss_ratio: float = 0.95,
     hmax: int = 100000,
-    stoploss_penalty: float = 0.9,
-    profit_loss_ratio: float = 1.5,
+    stoploss_min: float = 0.8,
+    stoploss_max: float = 1.0,
     cash_penalty: float = 0.05,
     upside_pnl_multiplier: float = 1.0,
 ) -> pd.DataFrame:
@@ -90,8 +90,8 @@ def backtest_fixed_stoploss(
         "print_verbosity": 500,
         "discrete_actions": True,
         "feature_columns": ["open", "close", "high", "low", "volume"] + indicators,
-        "stoploss_penalty": stoploss_penalty,
-        "profit_loss_ratio": profit_loss_ratio,
+        "stoploss_min": stoploss_min,
+        "stoploss_max": stoploss_max,
         "cash_penalty_proportion": cash_penalty,
         "upside_pnl_multiplier": upside_pnl_multiplier,
         "patient": True,
@@ -129,9 +129,11 @@ def backtest_fixed_stoploss(
     for i in range(max_steps + 1):
         action, _states = trained_ppo.predict(obs, deterministic=True)
         # Override the stop-loss portion with the fixed ratio
-        # Action space is mapped: ratio = 0.95 + action * 0.05
-        # So action = (ratio - 0.95) / 0.05
-        fixed_sl_action = (fixed_stoploss_ratio - 0.95) / 0.05
+        # Action space is mapped: ratio = stoploss_center + action * stoploss_half_range
+        # So action = (ratio - stoploss_center) / stoploss_half_range
+        center = (stoploss_max + stoploss_min) / 2.0
+        half_range = (stoploss_max - stoploss_min) / 2.0
+        fixed_sl_action = (fixed_stoploss_ratio - center) / half_range
         action[0, n_assets:] = fixed_sl_action
         obs, rewards, dones, info = env_norm.step(action)
         if i >= max_steps or dones[0]:
@@ -157,8 +159,8 @@ def backtest(
     test_start: str = None,
     window_size: int = 60,
     hmax: int = 100000,
-    stoploss_penalty: float = 0.9,
-    profit_loss_ratio: float = 1.5,
+    stoploss_min: float = 0.8,
+    stoploss_max: float = 1.0,
     cash_penalty: float = 0.05,
     upside_pnl_multiplier: float = 1.0,
     fixed_stoploss_ratio: float = 0.95,
@@ -186,8 +188,8 @@ def backtest(
         "print_verbosity": 500,
         "discrete_actions": True,
         "feature_columns": ["open", "close", "high", "low", "volume"] + indicators,
-        "stoploss_penalty": stoploss_penalty,
-        "profit_loss_ratio": profit_loss_ratio,
+        "stoploss_min": stoploss_min,
+        "stoploss_max": stoploss_max,
         "cash_penalty_proportion": cash_penalty,
         "upside_pnl_multiplier": upside_pnl_multiplier,
         "patient": True,
@@ -273,8 +275,8 @@ def backtest(
         window_size=window_size,
         fixed_stoploss_ratio=fixed_stoploss_ratio,
         hmax=hmax,
-        stoploss_penalty=stoploss_penalty,
-        profit_loss_ratio=profit_loss_ratio,
+        stoploss_min=stoploss_min,
+        stoploss_max=stoploss_max,
         cash_penalty=cash_penalty,
         upside_pnl_multiplier=upside_pnl_multiplier,
     )
@@ -329,8 +331,8 @@ def main():
     parser.add_argument("--test_start", type=str, default=None, help="Start date/time for backtesting actually begins")
     parser.add_argument("--window_size", type=int, default=60, help="CNN1D Window size")
     parser.add_argument("--hmax", type=int, default=100000, help="Max number of shares to trade")
-    parser.add_argument("--stoploss_penalty", type=float, default=0.9, help="Max DD before episode termination penalty")
-    parser.add_argument("--profit_loss_ratio", type=float, default=1.5, help="Profit/Loss ratio for the reward function")
+    parser.add_argument("--stoploss_min", type=float, default=0.8, help="Minimum stop-loss ratio threshold")
+    parser.add_argument("--stoploss_max", type=float, default=1.0, help="Maximum stop-loss ratio threshold")
     parser.add_argument("--cash_penalty", type=float, default=0.05, help="Cash penalty proportion")
     parser.add_argument("--upside_pnl_multiplier", type=float, default=1.0, help="Asymmetric upside PnL reward multiplier")
     parser.add_argument("--fixed_stoploss_ratio", type=float, default=0.95,
@@ -354,8 +356,8 @@ def main():
         test_start=args.test_start,
         window_size=args.window_size,
         hmax=args.hmax,
-        stoploss_penalty=args.stoploss_penalty,
-        profit_loss_ratio=args.profit_loss_ratio,
+        stoploss_min=args.stoploss_min,
+        stoploss_max=args.stoploss_max,
         cash_penalty=args.cash_penalty,
         upside_pnl_multiplier=args.upside_pnl_multiplier,
         fixed_stoploss_ratio=args.fixed_stoploss_ratio,

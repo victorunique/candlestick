@@ -50,8 +50,8 @@ def env_kwargs():
         "print_verbosity": 10,
         "discrete_actions": False,
         "feature_columns": ["open", "close", "high", "low", "volume", "macd", "rsi_30", "cci_30", "dx_30"],
-        "stoploss_penalty": 0.9,
-        "profit_loss_ratio": 1.5,
+        "stoploss_min": 0.8,
+        "stoploss_max": 1.0,
         "cash_penalty_proportion": 0.05,
         "patient": False,
         "random_start": False,
@@ -128,9 +128,8 @@ def test_env_stoploss_trigger(mock_stock_data, env_kwargs):
 
 def test_stoploss_executes_at_threshold_price(mock_stock_data, env_kwargs):
     """
-    When stop-loss fires intraday (open > threshold > low), proceeds should be calculated
-    at the SL threshold price. If it gaps down (open < threshold), it should execute
-    at the open price. This tests the intraday non-gapping case.
+    When stop-loss fires intraday (open > threshold > low) or gaps down 
+    (open < threshold), proceeds should be calculated at the exact SL threshold price.
     """
     env = StockTradingEnv(df=mock_stock_data, **env_kwargs)
     env.reset()
@@ -147,7 +146,7 @@ def test_stoploss_executes_at_threshold_price(mock_stock_data, env_kwargs):
     # Force avg_buy_price to 112.0 so SL threshold = 112.0 * 0.99 = 110.88.
     # Step 1: AAPL open = 110, low = 110.
     # Since low (110) <= 110.88, SL triggers.
-    # Since open (110) < 110.88, execution price is 110 (gap down).
+    # Since we use exactly the SL threshold price, execution price is 110.88
     env.avg_buy_price = np.array([112.0, 0.0])
 
     action = np.array([0.0, 0.0, 0.9, 0.9])
@@ -157,12 +156,11 @@ def test_stoploss_executes_at_threshold_price(mock_stock_data, env_kwargs):
     cash_after_sl = last_step[0]
     # 0.9 SL action maps to 0.99 ratio (0.90 + 0.9 * 0.10)
     # sl_threshold = 112.0 * 0.99 = 110.88
-    # Because open(110) < 110.88, the execution price is open = 110.0
-    sl_threshold_price = 110.0
+    sl_threshold_price = 110.88
     expected_gross_proceeds = aapl_holdings * sl_threshold_price
     sell_cost = expected_gross_proceeds * env.sell_cost_pct
 
-    # Cash should reflect open price (110.0), NOT SL threshold (110.88)
+    # Cash should reflect SL threshold (110.88)
     expected_cash = cash_after_buy + expected_gross_proceeds - sell_cost
     assert abs(cash_after_sl - expected_cash) < 0.01, (
         f"SL should sell at threshold ${sl_threshold_price}, "

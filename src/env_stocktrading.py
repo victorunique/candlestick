@@ -23,8 +23,8 @@ class StockTradingEnv(gym.Env):
         hmax=10,
         discrete_actions=False,
         shares_increment=1,
-        stoploss_penalty=0.9,
-        profit_loss_ratio=2,
+        stoploss_min=0.8,
+        stoploss_max=1.0,
         print_verbosity=10,
         initial_amount=1e6,
         feature_columns=["open", "close", "high", "low", "volume"],
@@ -67,12 +67,10 @@ class StockTradingEnv(gym.Env):
         self.print_verbosity = print_verbosity
         self.buy_cost_pct = buy_cost_pct
         self.sell_cost_pct = sell_cost_pct
-        self.stoploss_penalty = stoploss_penalty
-        # NOTE: min_profit_penalty is NOT currently used in the reward function.
-        # It is retained for potential future reward shaping, e.g. penalising
-        # the agent for closing trades that do not meet a minimum
-        # risk-to-reward ratio relative to the stop-loss distance.
-        self.min_profit_penalty = 1 + profit_loss_ratio * (1 - self.stoploss_penalty)
+        self.stoploss_min = stoploss_min
+        self.stoploss_max = stoploss_max
+        self.stoploss_center = (stoploss_max + stoploss_min) / 2.0
+        self.stoploss_half_range = (stoploss_max - stoploss_min) / 2.0
         self.feature_columns = feature_columns
         self.state_space = (
             1 + len(self.assets) + len(self.assets) * len(self.feature_columns)
@@ -85,7 +83,7 @@ class StockTradingEnv(gym.Env):
         
         # Define bounds
         # Trading actions: [-1, 1]
-        # Stoploss ratios: [-1, 1] mapped internally to [0.5, 1.0]
+        # Stoploss ratios: [-1, 1] mapped internally to [stoploss_min, stoploss_max]
         # Note: SB3 will automatically rescale actions to these bounds
         low = np.concatenate([np.full(n_assets, -1.0, dtype=np.float32), np.full(n_assets, -1.0, dtype=np.float32)])
         high = np.concatenate([np.full(n_assets, 1.0, dtype=np.float32), np.full(n_assets, 1.0, dtype=np.float32)])
@@ -267,19 +265,19 @@ class StockTradingEnv(gym.Env):
         if isinstance(actions, dict):
             trading_actions = actions["trading_actions"].astype(np.float32)
             sl_actions = actions["stoploss_ratios"].astype(np.float32)
-            stoploss_ratios = 0.95 + sl_actions * 0.05
+            stoploss_ratios = self.stoploss_center + sl_actions * self.stoploss_half_range
         else:
             if isinstance(actions, np.ndarray) and actions.shape[0] == 2 * len(self.assets):
                 trading_actions = actions[:len(self.assets)].astype(np.float32)
                 sl_actions = actions[len(self.assets):].astype(np.float32)
-                stoploss_ratios = 0.95 + sl_actions * 0.05
+                stoploss_ratios = self.stoploss_center + sl_actions * self.stoploss_half_range
             else:
                 trading_actions = actions
                 if hasattr(trading_actions, "astype"):
                     trading_actions = trading_actions.astype(np.float32)
-                stoploss_ratios = np.ones(len(self.assets), dtype=np.float32) * self.stoploss_penalty
+                stoploss_ratios = np.ones(len(self.assets), dtype=np.float32) * self.stoploss_min
 
-        stoploss_ratios = np.clip(stoploss_ratios, 0.5, 1.0)
+        stoploss_ratios = np.clip(stoploss_ratios, self.stoploss_min, self.stoploss_max)
 
         if self.printed_header is False:
             self.log_header()
@@ -318,8 +316,8 @@ class StockTradingEnv(gym.Env):
         actions_final = np.maximum(actions_final, -np.array(holdings))
 
         sells = -np.clip(actions_final, -np.inf, 0)
-        # Use min(open, SL threshold) for stop-loss sells to simulate gap-down slippage, close price for normal sells
-        sell_prices = np.where(sl_hit_mask, np.minimum(current_opens, sl_thresholds), current_closings)
+        # Always use the stop-loss threshold price when stop-loss is triggered
+        sell_prices = np.where(sl_hit_mask, sl_thresholds, current_closings)
         proceeds = np.dot(sells, sell_prices)
         costs = proceeds * self.sell_cost_pct
         coh = begin_cash + proceeds

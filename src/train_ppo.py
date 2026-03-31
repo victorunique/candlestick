@@ -69,8 +69,8 @@ def train_ppo(
     learning_rate: float = 0.00025,
     gamma: float = 0.99,
     hmax: int = 100000,
-    stoploss_penalty: float = 0.9,
-    profit_loss_ratio: float = 1.5,
+    stoploss_min: float = 0.8,
+    stoploss_max: float = 1.0,
     cash_penalty: float = 0.05,
     reward_weight_pnl: float = 1.0,
     reward_weight_drawdown: float = 0.2,
@@ -100,8 +100,8 @@ def train_ppo(
         "print_verbosity": 500,
         "discrete_actions": True,
         "feature_columns": ["open", "close", "high", "low", "volume"] + indicators,
-        "stoploss_penalty": stoploss_penalty,
-        "profit_loss_ratio": profit_loss_ratio,
+        "stoploss_min": stoploss_min,
+        "stoploss_max": stoploss_max,
         "cash_penalty_proportion": cash_penalty,
         "upside_pnl_multiplier": upside_pnl_multiplier,
         "reward_weight_pnl": reward_weight_pnl,
@@ -194,9 +194,9 @@ def main():
     
     # Environment Hyperparameters
     parser.add_argument("--hmax", type=int, default=100000, help="Max number of shares to trade")
-    parser.add_argument("--stoploss_penalty", type=float, default=0.9, help="Stop-loss penalty ratio")
-    parser.add_argument("--profit_loss_ratio", type=float, default=1.5, help="Profit-to-loss ratio")
-    parser.add_argument("--cash_penalty", type=float, default=0.05, help="Cash penalty proportion")
+    parser.add_argument("--stoploss_min", type=float, default=0.8, help="Minimum stop-loss ratio threshold")
+    parser.add_argument("--stoploss_max", type=float, default=1.0, help="Maximum stop-loss ratio threshold")
+    parser.add_argument("--cash_penalty", type=float, default=0.0, help="Cash penalty proportion")
     parser.add_argument("--upside_pnl_multiplier", type=float, default=1.0, help="Asymmetric upside PnL reward multiplier")
     parser.add_argument("--reward_weight_pnl", type=float, default=1.0, help="Reward weight for PnL")
     parser.add_argument("--reward_weight_drawdown", type=float, default=0.2, help="Reward weight for drawdown penalty")
@@ -228,8 +228,8 @@ def main():
         gamma=args.gamma,
         episode_length=args.episode_length,
         hmax=args.hmax,
-        stoploss_penalty=args.stoploss_penalty,
-        profit_loss_ratio=args.profit_loss_ratio,
+        stoploss_min=args.stoploss_min,
+        stoploss_max=args.stoploss_max,
         cash_penalty=args.cash_penalty,
         reward_weight_pnl=args.reward_weight_pnl,
         reward_weight_drawdown=args.reward_weight_drawdown,

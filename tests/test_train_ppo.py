@@ -177,8 +177,8 @@ class TestSeedReproducibility:
 
 
 class TestCLIArgsForwarded:
-    """Bug 3: CLI main() must expose and forward hmax, stoploss_penalty,
-    profit_loss_ratio, cash_penalty, and seed to train_ppo()."""
+    """Bug 3: CLI main() must expose and forward hmax, stoploss_min,
+    stoploss_max, cash_penalty, and seed to train_ppo()."""
 
     def test_all_params_forwarded(self):
         """Verify that main() passes every CLI arg to train_ppo()."""
@@ -197,8 +197,8 @@ class TestCLIArgsForwarded:
             "--gamma", "0.95",
             "--episode_length", "500",
             "--hmax", "50000",
-            "--stoploss_penalty", "0.85",
-            "--profit_loss_ratio", "2.0",
+            "--stoploss_min", "0.75",
+            "--stoploss_max", "0.95",
             "--cash_penalty", "0.1",
         ]
 
@@ -217,8 +217,8 @@ class TestCLIArgsForwarded:
         assert kwargs["train_start"] == "2024-01-15"
         assert kwargs["n_steps"] == 4096
         assert kwargs["hmax"] == 50000
-        assert kwargs["stoploss_penalty"] == 0.85
-        assert kwargs["profit_loss_ratio"] == 2.0
+        assert kwargs["stoploss_min"] == 0.75
+        assert kwargs["stoploss_max"] == 0.95
         assert kwargs["cash_penalty"] == 0.1
         assert kwargs["seed"] == 7
         assert kwargs["window_size"] == 5

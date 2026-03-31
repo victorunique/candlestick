@@ -74,7 +74,7 @@ Initializes the trading environment and trains the PPO agent with 1D CNN extract
 ```bash
 uv run python -m src.train_ppo --data_path ./data/data_training_preprocessed.csv --model_dir ./trained_models --model_name my_ppo_bot --train_start 2020-01-01 --total_timesteps 10000 --seed 42
 ```
-Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profit_loss_ratio`, `--cash_penalty`, `--upside_pnl_multiplier`, `--reward_weight_pnl`, `--reward_weight_drawdown`, `--continuous_drawdown_penalty`. Run `--help` for details.
+Additional environment hyperparameters: `--hmax`, `--stoploss_min`, `--stoploss_max`, `--cash_penalty`, `--upside_pnl_multiplier`, `--reward_weight_pnl`, `--reward_weight_drawdown`, `--continuous_drawdown_penalty`. Run `--help` for details.
 
 ### 4. Plot Training Curve (Optional)
 Visualize the learning curve to verify that the agent is actually learning (e.g., reward trending up) by reading the training-log CSV.
@@ -88,7 +88,7 @@ Loads the trained model and normalizer, predicting actions on the dataset and ca
 # In practice, you should fetch new data for backtesting (e.g. 2024-06-01 to 2024-09-01) 
 uv run python -m src.backtest --data_path ./data/data_testing_preprocessed.csv --model_path ./trained_models/my_ppo_bot --results_dir ./results --test_start 2024-06-01
 ```
-Additional environment hyperparameters: `--hmax`, `--stoploss_penalty`, `--profit_loss_ratio`, `--cash_penalty`, `--upside_pnl_multiplier`, `--window_size`, `--fixed_stoploss_ratio`. Run `--help` for details.
+Additional environment hyperparameters: `--hmax`, `--stoploss_min`, `--stoploss_max`, `--cash_penalty`, `--upside_pnl_multiplier`, `--window_size`, `--fixed_stoploss_ratio`. Run `--help` for details.
 
 The backtest will output `my_ppo_bot_account_history.csv` (portfolio value over time), `my_ppo_bot_action_history.csv` (trade execution log), `baseline_buy_and_hold_account_history.csv` (buy-and-hold baseline), and `fixed_stoploss_account_history.csv` (PPO with fixed stop-loss) in the specified results directory.
 
@@ -163,6 +163,8 @@ Edit the `run_pipeline_config.json` file in the root directory to specify the se
 | `reward_weight_drawdown_list` | Reward weight for drawdown penalty |
 | `cash_penalty_list` | Penalty proportion for uninvested cash |
 | `upside_pnl_multiplier_list` | Standard positive PnL multiplier |
+| `stoploss_min_list` | Minimum stop-loss ratio threshold |
+| `stoploss_max_list` | Maximum stop-loss ratio threshold |
 | `n_steps_list`, `ent_coef_list`, `learning_rate_list`, `gamma_list`, `episode_length_list` | PPO hyperparameters |
 
 Fixed values (not part of the grid): `interval=1m`, `seed=42`, `fixed_stoploss_ratio=0.95`, `initial_amount=1000000`.
@@ -194,6 +196,7 @@ This is especially useful since the Yahoo Finance API cannot provide 1-minute le
 ```
 combo_id,train_start,train_end,test_start,test_end,tickers,total_timesteps,
 reward_weight_pnl,reward_weight_drawdown,cash_penalty_proportion,upside_pnl_multiplier,
+stoploss_min,stoploss_max,
 n_steps,ent_coef,learning_rate,gamma,
 episode_length,ppo_return,ppo_max_dd,fsl_return,fsl_max_dd,bh_return,bh_max_dd
 ```
