@@ -12,6 +12,8 @@ def test_build_commands_with_local_history():
         "reward_weight_drawdown": 0.5,
         "cash_penalty_proportion": 0.05,
         "upside_pnl_multiplier": 1.0,
+        "stoploss_min": 0.90,
+        "stoploss_max": 0.95,
         "n_steps": 2048,
         "ent_coef": 0.01,
         "learning_rate": 0.00025,

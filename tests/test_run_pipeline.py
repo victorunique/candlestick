@@ -45,6 +45,8 @@ class TestGenerateCombinations:
             reward_weight_drawdown_list=reward_dd,
             cash_penalty_proportion_list=[0.05],
             upside_pnl_multiplier_list=[1.0],
+            stoploss_min_list=[0.90],
+            stoploss_max_list=[0.95],
             n_steps_list=n_steps,
             ent_coef_list=ent_coef,
             learning_rate_list=lr,
@@ -60,6 +62,8 @@ class TestGenerateCombinations:
         assert c["test_end"] == "2020-12-31"
         assert c["tickers"] == ["AAPL"]
         assert c["total_timesteps"] == 10000
+        assert c["stoploss_min"] == 0.90
+        assert c["stoploss_max"] == 0.95
 
     def test_cartesian_product_count(self):
         """Two date ranges × two ticker lists × rest single → 4 combos."""
@@ -85,6 +89,8 @@ class TestGenerateCombinations:
             reward_weight_drawdown_list=reward_dd,
             cash_penalty_proportion_list=[0.05],
             upside_pnl_multiplier_list=[1.0],
+            stoploss_min_list=[0.90],
+            stoploss_max_list=[0.95],
             n_steps_list=n_steps,
             ent_coef_list=ent_coef,
             learning_rate_list=lr,
@@ -104,6 +110,8 @@ class TestGenerateCombinations:
             reward_weight_drawdown_list=[0.5],
             cash_penalty_proportion_list=[0.05],
             upside_pnl_multiplier_list=[1.0],
+            stoploss_min_list=[0.90],
+            stoploss_max_list=[0.95],
             n_steps_list=[2048],
             ent_coef_list=[0.01],
             learning_rate_list=[0.00025],
@@ -116,6 +124,7 @@ class TestGenerateCombinations:
             "tickers", "total_timesteps",
             "reward_weight_pnl", "reward_weight_drawdown",
             "cash_penalty_proportion", "upside_pnl_multiplier",
+            "stoploss_min", "stoploss_max",
             "n_steps", "ent_coef", "learning_rate", "gamma",
             "episode_length",
         }
@@ -141,6 +150,8 @@ class TestBuildCommands:
             "reward_weight_drawdown": 0.5,
             "cash_penalty_proportion": 0.05,
             "upside_pnl_multiplier": 1.0,
+            "stoploss_min": 0.90,
+            "stoploss_max": 0.95,
             "n_steps": 2048,
             "ent_coef": 0.01,
             "learning_rate": 0.00025,
@@ -298,6 +309,8 @@ class TestResultsCsvAccumulation:
             "reward_weight_drawdown": 0.5,
             "cash_penalty_proportion": 0.05,
             "upside_pnl_multiplier": 1.0,
+            "stoploss_min": 0.90,
+            "stoploss_max": 0.95,
             "n_steps": 2048,
             "ent_coef": 0.01,
             "learning_rate": 0.00025,
@@ -364,6 +377,8 @@ class TestDryRunCli:
             "reward_weight_drawdown_list": [0.5],
             "cash_penalty_proportion_list": [0.05],
             "upside_pnl_multiplier_list": [1.0],
+            "stoploss_min_list": [0.90],
+            "stoploss_max_list": [0.95],
             "n_steps_list": [2048],
             "ent_coef_list": [0.01],
             "learning_rate_list": [0.00025],
