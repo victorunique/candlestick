@@ -66,17 +66,17 @@ def train_ppo(
     window_size: int = 60,
     n_steps: int = 2048,
     ent_coef: float = 0.01,
-    learning_rate: float = 0.00025,
+    learning_rate: float = 0.0001,
     gamma: float = 0.99,
     hmax: int = 100000,
-    stoploss_min: float = 0.8,
+    stoploss_min: float = 0.75,
     stoploss_max: float = 1.0,
-    cash_penalty: float = 0.05,
+    cash_penalty: float = 0.0,
     reward_weight_pnl: float = 1.0,
     reward_weight_drawdown: float = 0.2,
     incremental_drawdown_penalty: bool = True,
-    upside_pnl_multiplier: float = 1.0,
-    episode_length: int = 1000,
+    upside_pnl_multiplier: float = 1.25,
+    episode_length: int = 500,
     seed: int = None
 ):
     os.makedirs(model_dir, exist_ok=True)
@@ -194,10 +194,10 @@ def main():
     
     # Environment Hyperparameters
     parser.add_argument("--hmax", type=int, default=100000, help="Max number of shares to trade")
-    parser.add_argument("--stoploss_min", type=float, default=0.8, help="Minimum stop-loss ratio threshold")
+    parser.add_argument("--stoploss_min", type=float, default=0.75, help="Minimum stop-loss ratio threshold")
     parser.add_argument("--stoploss_max", type=float, default=1.0, help="Maximum stop-loss ratio threshold")
     parser.add_argument("--cash_penalty", type=float, default=0.0, help="Cash penalty proportion")
-    parser.add_argument("--upside_pnl_multiplier", type=float, default=1.0, help="Asymmetric upside PnL reward multiplier")
+    parser.add_argument("--upside_pnl_multiplier", type=float, default=1.25, help="Asymmetric upside PnL reward multiplier")
     parser.add_argument("--reward_weight_pnl", type=float, default=1.0, help="Reward weight for PnL")
     parser.add_argument("--reward_weight_drawdown", type=float, default=0.2, help="Reward weight for drawdown penalty")
     parser.add_argument("--continuous_drawdown_penalty", action="store_true", help="Use continuous instead of incremental drawdown penalty")

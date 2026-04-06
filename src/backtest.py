@@ -59,10 +59,10 @@ def backtest_fixed_stoploss(
     window_size: int = 60,
     fixed_stoploss_ratio: float = 0.95,
     hmax: int = 100000,
-    stoploss_min: float = 0.8,
+    stoploss_min: float = 0.75,
     stoploss_max: float = 1.0,
-    cash_penalty: float = 0.05,
-    upside_pnl_multiplier: float = 1.0,
+    cash_penalty: float = 0.0,
+    upside_pnl_multiplier: float = 1.25,
 ) -> pd.DataFrame:
     """Re-run the same trained PPO model with a fixed stop-loss ratio.
 
@@ -159,10 +159,10 @@ def backtest(
     test_start: str = None,
     window_size: int = 60,
     hmax: int = 100000,
-    stoploss_min: float = 0.8,
+    stoploss_min: float = 0.75,
     stoploss_max: float = 1.0,
-    cash_penalty: float = 0.05,
-    upside_pnl_multiplier: float = 1.0,
+    cash_penalty: float = 0.0,
+    upside_pnl_multiplier: float = 1.25,
     fixed_stoploss_ratio: float = 0.95,
     plaintext: bool = False,
 ):
@@ -331,10 +331,10 @@ def main():
     parser.add_argument("--test_start", type=str, default=None, help="Start date/time for backtesting actually begins")
     parser.add_argument("--window_size", type=int, default=60, help="CNN1D Window size")
     parser.add_argument("--hmax", type=int, default=100000, help="Max number of shares to trade")
-    parser.add_argument("--stoploss_min", type=float, default=0.8, help="Minimum stop-loss ratio threshold")
+    parser.add_argument("--stoploss_min", type=float, default=0.75, help="Minimum stop-loss ratio threshold")
     parser.add_argument("--stoploss_max", type=float, default=1.0, help="Maximum stop-loss ratio threshold")
-    parser.add_argument("--cash_penalty", type=float, default=0.05, help="Cash penalty proportion")
-    parser.add_argument("--upside_pnl_multiplier", type=float, default=1.0, help="Asymmetric upside PnL reward multiplier")
+    parser.add_argument("--cash_penalty", type=float, default=0.0, help="Cash penalty proportion")
+    parser.add_argument("--upside_pnl_multiplier", type=float, default=1.25, help="Asymmetric upside PnL reward multiplier")
     parser.add_argument("--fixed_stoploss_ratio", type=float, default=0.95,
                         help="Fixed stop-loss ratio for comparison strategy (0.5-1.0)")
     parser.add_argument("--plaintext", action="store_true", default=False,
