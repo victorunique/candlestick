@@ -92,3 +92,7 @@ def test_generate_report_creates_html(synthetic_csvs, tmp_path):
     
     # Check that it contains 6 images (3 for backtest + 3 for training)
     assert html.count('data:image/png;base64,') == 6
+
+    # Sharpe and Sortino ratios must appear in the performance table
+    assert "Sharpe Ratio" in html
+    assert "Sortino Ratio" in html

@@ -4,7 +4,13 @@ import pandas as pd
 import os
 import tempfile
 from src.train_ppo import train_ppo
-from src.backtest import backtest, baseline_buy_and_hold, backtest_fixed_stoploss
+from src.backtest import (
+    backtest,
+    baseline_buy_and_hold,
+    backtest_fixed_stoploss,
+    compute_sharpe,
+    compute_sortino,
+)
 
 
 @pytest.fixture
@@ -340,7 +346,7 @@ def test_backtest_plaintext_output_format(sample_preprocessed_data, trained_mode
     assert "Backtest Results" not in plaintext_line
 
     parts = plaintext_line.split(",")
-    assert len(parts) == 6, f"Expected 6 values, got {len(parts)}: {plaintext_line}"
+    assert len(parts) == 12, f"Expected 12 values, got {len(parts)}: {plaintext_line}"
 
     # Each part must be a valid float
     for p in parts:
@@ -499,3 +505,154 @@ def test_backtest_plaintext_no_nan_with_unbalanced_data(
     assert "nan" not in plaintext_line.lower(), (
         f"Plaintext output contains NaN: {plaintext_line}"
     )
+
+
+# ---------------------------------------------------------------------------
+# compute_sharpe / compute_sortino unit tests
+# ---------------------------------------------------------------------------
+
+class TestComputeSharpe:
+    """Unit tests for the Sharpe ratio helper."""
+
+    def test_known_values(self):
+        """Sharpe = mean(returns) / std(returns) for rf=0."""
+        # Equity: 100 -> 110 -> 105 -> 115
+        # Returns: +10%, -4.545%, +9.524%
+        equity = np.array([100.0, 110.0, 105.0, 115.0])
+        result = compute_sharpe(equity, risk_free_rate=0.0)
+
+        returns = np.diff(equity) / equity[:-1]
+        expected = returns.mean() / returns.std(ddof=1)
+        assert result == pytest.approx(expected, rel=1e-6)
+
+    def test_flat_equity_returns_zero(self):
+        """Flat equity curve (no change) => Sharpe should be 0.0."""
+        equity = np.array([100.0, 100.0, 100.0, 100.0])
+        result = compute_sharpe(equity)
+        assert result == 0.0
+
+    def test_single_step(self):
+        """Only one return => std is 0 => should return 0.0."""
+        equity = np.array([100.0, 110.0])
+        result = compute_sharpe(equity)
+        assert result == 0.0
+
+    def test_with_risk_free_rate(self):
+        """Non-zero risk-free rate shifts the numerator."""
+        equity = np.array([100.0, 110.0, 105.0, 115.0])
+        rf = 0.01
+        result = compute_sharpe(equity, risk_free_rate=rf)
+
+        returns = np.diff(equity) / equity[:-1]
+        expected = (returns.mean() - rf) / returns.std(ddof=1)
+        assert result == pytest.approx(expected, rel=1e-6)
+
+
+class TestComputeSortino:
+    """Unit tests for the Sortino ratio helper."""
+
+    def test_known_values(self):
+        """Sortino = mean(returns) / std(negative_returns_only) for rf=0."""
+        # Equity: 100 -> 110 -> 105 -> 115 -> 108
+        # Returns: +10%, -4.545%, +9.524%, -6.087%
+        # Two negative returns ensure ddof=1 std is valid
+        equity = np.array([100.0, 110.0, 105.0, 115.0, 108.0])
+        result = compute_sortino(equity, risk_free_rate=0.0)
+
+        returns = np.diff(equity) / equity[:-1]
+        downside = returns[returns < 0]
+        expected = returns.mean() / downside.std(ddof=1)
+        assert result == pytest.approx(expected, rel=1e-6)
+
+    def test_all_positive_returns(self):
+        """All returns positive => no downside => Sortino should be 0.0 (no downside risk measurable)."""
+        equity = np.array([100.0, 110.0, 120.0, 130.0])
+        result = compute_sortino(equity)
+        assert result == 0.0
+
+    def test_flat_equity_returns_zero(self):
+        """Flat equity curve => Sortino should be 0.0."""
+        equity = np.array([100.0, 100.0, 100.0, 100.0])
+        result = compute_sortino(equity)
+        assert result == 0.0
+
+    def test_single_step(self):
+        """Only one return => should return 0.0."""
+        equity = np.array([100.0, 90.0])
+        result = compute_sortino(equity)
+        assert result == 0.0
+
+    def test_with_risk_free_rate(self):
+        """Non-zero risk-free rate shifts the numerator."""
+        equity = np.array([100.0, 110.0, 105.0, 115.0, 108.0])
+        rf = 0.01
+        result = compute_sortino(equity, risk_free_rate=rf)
+
+        returns = np.diff(equity) / equity[:-1]
+        downside = returns[returns < 0]
+        expected = (returns.mean() - rf) / downside.std(ddof=1)
+        assert result == pytest.approx(expected, rel=1e-6)
+
+
+class TestBacktestPlaintextIncludesRatios:
+    """Verify plaintext output now includes Sharpe and Sortino for all strategies."""
+
+    def test_plaintext_has_12_values(self, sample_preprocessed_data, trained_model_dir, capsys):
+        """Plaintext line must contain 12 comma-separated float values."""
+        temp_dir, model_name = trained_model_dir
+        model_path = os.path.join(temp_dir, model_name)
+        results_dir = os.path.join(temp_dir, "results_ratios_pt")
+
+        backtest(
+            df=sample_preprocessed_data,
+            model_path=model_path,
+            results_dir=results_dir,
+            indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+            window_size=10,
+            plaintext=True,
+        )
+
+        captured = capsys.readouterr()
+        lines = [line for line in captured.out.strip().splitlines() if line.strip()]
+        plaintext_line = lines[-1]
+
+        parts = plaintext_line.split(",")
+        assert len(parts) == 12, f"Expected 12 values, got {len(parts)}: {plaintext_line}"
+        for p in parts:
+            float(p)  # must be valid float
+
+
+class TestBacktestHumanReadableIncludesRatios:
+    """Verify human-readable output includes Sharpe and Sortino labels."""
+
+    def test_output_contains_sharpe(self, sample_preprocessed_data, trained_model_dir, capsys):
+        temp_dir, model_name = trained_model_dir
+        model_path = os.path.join(temp_dir, model_name)
+        results_dir = os.path.join(temp_dir, "results_sharpe_print")
+
+        backtest(
+            df=sample_preprocessed_data,
+            model_path=model_path,
+            results_dir=results_dir,
+            indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+            window_size=10,
+        )
+
+        captured = capsys.readouterr()
+        assert "Sharpe Ratio:" in captured.out
+
+    def test_output_contains_sortino(self, sample_preprocessed_data, trained_model_dir, capsys):
+        temp_dir, model_name = trained_model_dir
+        model_path = os.path.join(temp_dir, model_name)
+        results_dir = os.path.join(temp_dir, "results_sortino_print")
+
+        backtest(
+            df=sample_preprocessed_data,
+            model_path=model_path,
+            results_dir=results_dir,
+            indicators=["macd", "rsi_30", "cci_30", "dx_30"],
+            window_size=10,
+        )
+
+        captured = capsys.readouterr()
+        assert "Sortino Ratio:" in captured.out

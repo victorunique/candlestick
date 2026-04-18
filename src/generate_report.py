@@ -21,10 +21,12 @@ import tempfile
 from datetime import datetime
 
 import matplotlib
+import numpy as np
 import pandas as pd
 
 matplotlib.use("Agg")  # Non-interactive backend
 
+from src.backtest import compute_sharpe, compute_sortino
 from src.plot_backtest import plot_backtest
 from src.plot_training_curve import plot_training_curve
 
@@ -52,11 +54,15 @@ def generate_report(args):
     running_max = total_assets.cummax()
     drawdown_pct = ((total_assets - running_max) / running_max) * 100
     max_dd = drawdown_pct.min()
+    ppo_sharpe = compute_sharpe(np.array(total_assets))
+    ppo_sortino = compute_sortino(np.array(total_assets))
 
     # Process baseline metrics
     baseline_ret_pct = None
     baseline_max_dd = None
     bl_final = None
+    bl_sharpe = None
+    bl_sortino = None
     if args.baseline_path and os.path.exists(args.baseline_path):
         df_bl = pd.read_csv(args.baseline_path, parse_dates=["date"])
         if getattr(args, "test_start", None):
@@ -67,11 +73,15 @@ def generate_report(args):
         bl_running_max = df_bl["total_assets"].cummax()
         bl_drawdown_pct = ((df_bl["total_assets"] - bl_running_max) / bl_running_max) * 100
         baseline_max_dd = bl_drawdown_pct.min()
+        bl_sharpe = compute_sharpe(np.array(df_bl["total_assets"]))
+        bl_sortino = compute_sortino(np.array(df_bl["total_assets"]))
 
     # Process fixed stoploss metrics
     fixed_sl_ret_pct = None
     fixed_sl_max_dd = None
     fsl_final = None
+    fsl_sharpe = None
+    fsl_sortino = None
     if args.fixed_sl_path and os.path.exists(args.fixed_sl_path):
         df_fsl = pd.read_csv(args.fixed_sl_path, parse_dates=["timestamp"])
         if getattr(args, "test_start", None):
@@ -83,6 +93,8 @@ def generate_report(args):
         fsl_running_max = df_fsl["total_assets"].cummax()
         fsl_drawdown_pct = ((df_fsl["total_assets"] - fsl_running_max) / fsl_running_max) * 100
         fixed_sl_max_dd = fsl_drawdown_pct.min()
+        fsl_sharpe = compute_sharpe(np.array(df_fsl["total_assets"]))
+        fsl_sortino = compute_sortino(np.array(df_fsl["total_assets"]))
 
     # Process training dataset metrics
     train_tickers = []
@@ -313,12 +325,16 @@ def generate_report(args):
                 <th>Final Portfolio</th>
                 <th>Return</th>
                 <th>Max Drawdown</th>
+                <th>Sharpe Ratio</th>
+                <th>Sortino Ratio</th>
             </tr>
             <tr>
                 <td><strong>PPO Agent</strong></td>
                 <td>${final_val:,.2f}</td>
                 <td class="{'positive' if ret_pct >= 0 else 'negative'}">{ret_pct:+.2f}%</td>
                 <td class="{'negative' if max_dd < 0 else ''}">{max_dd:.2f}%</td>
+                <td>{ppo_sharpe:.4f}</td>
+                <td>{ppo_sortino:.4f}</td>
             </tr>'''
 
     if fixed_sl_ret_pct is not None:
@@ -328,6 +344,8 @@ def generate_report(args):
                 <td>${fsl_final:,.2f}</td>
                 <td class="{'positive' if fixed_sl_ret_pct >= 0 else 'negative'}">{fixed_sl_ret_pct:+.2f}%</td>
                 <td class="{'negative' if fixed_sl_max_dd < 0 else ''}">{fixed_sl_max_dd:.2f}%</td>
+                <td>{fsl_sharpe:.4f}</td>
+                <td>{fsl_sortino:.4f}</td>
             </tr>'''
 
     if baseline_ret_pct is not None:
@@ -337,6 +355,8 @@ def generate_report(args):
                 <td>${bl_final:,.2f}</td>
                 <td class="{'positive' if baseline_ret_pct >= 0 else 'negative'}">{baseline_ret_pct:+.2f}%</td>
                 <td class="{'negative' if baseline_max_dd < 0 else ''}">{baseline_max_dd:.2f}%</td>
+                <td>{bl_sharpe:.4f}</td>
+                <td>{bl_sortino:.4f}</td>
             </tr>'''
 
     html += f'''

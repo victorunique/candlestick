@@ -100,14 +100,16 @@ Add `--plaintext` to emit a single comma-separated line of decimal values (no la
 uv run python -m src.backtest --data_path ./data/data_testing_preprocessed.csv --model_path ./trained_models/my_ppo_bot --results_dir ./results --plaintext
 ```
 
-Output format: `<ppo_return>,<ppo_max_dd>,<fsl_return>,<fsl_max_dd>,<bh_return>,<bh_max_dd>`
+Output format: `<ppo_return>,<ppo_max_dd>,<ppo_sharpe>,<ppo_sortino>,<fsl_return>,<fsl_max_dd>,<fsl_sharpe>,<fsl_sortino>,<bh_return>,<bh_max_dd>,<bh_sharpe>,<bh_sortino>`
 
-Example: `-0.0016,-0.0069,-0.0163,-0.0228,-0.0089,-0.0158`
+Example: `-0.0016,-0.0069,0.5234,-0.8123,-0.0163,-0.0228,0.3012,-0.6045,-0.0089,-0.0158,0.4100,-0.7200`
 
 The printed output includes a three-way comparison:
 1. **PPO Agent** — the trained RL model with its learned dynamic stop-loss ratios.
 2. **Buy & Hold Baseline** — equal-weight allocation across all tickers from day 1.
 3. **PPO + Fixed SL** — the same RL model but with the stop-loss ratio overridden to a fixed value (default 95%, configurable via `--fixed_stoploss_ratio`).
+
+Each strategy reports: total return, max drawdown, **Sharpe ratio**, and **Sortino ratio**. The Sharpe ratio measures risk-adjusted return relative to total volatility; the Sortino ratio is similar but only penalises *downside* volatility.
 
 ### 6. Visualize Backtest Results (Optional)
 Plot the portfolio total assets over time, maximum drawdown, and per-ticker close prices with overlaid buy/sell signals.
@@ -128,7 +130,7 @@ The `--data_path` flag is optional; when provided, the third graph plots each ti
 The `--test_start` flag is also optional; when provided, the plot will exclude any timestamp prior to the specified date, effectively clipping out the window-size warmup period for a truer representation of the test performance.
 
 ### 7. Generate Static HTML Report
-Create a comprehensive, academic-style static HTML report containing dataset information, performance metrics, and embedded visualizations from backtesting and training.
+Create a comprehensive, academic-style static HTML report containing dataset information, performance metrics (total return, max drawdown, Sharpe ratio, Sortino ratio), and embedded visualizations from backtesting and training.
 
 ```bash
 uv run python -m src.generate_report \
@@ -198,7 +200,9 @@ combo_id,train_start,train_end,test_start,test_end,tickers,total_timesteps,
 reward_weight_pnl,reward_weight_drawdown,cash_penalty_proportion,upside_pnl_multiplier,
 stoploss_min,stoploss_max,
 n_steps,ent_coef,learning_rate,gamma,
-episode_length,ppo_return,ppo_max_dd,fsl_return,fsl_max_dd,bh_return,bh_max_dd
+episode_length,ppo_return,ppo_max_dd,ppo_sharpe,ppo_sortino,
+fsl_return,fsl_max_dd,fsl_sharpe,fsl_sortino,
+bh_return,bh_max_dd,bh_sharpe,bh_sortino
 ```
 
 Each combo runs in an isolated temp directory that is cleaned up afterwards, ensuring no state leakage between runs.

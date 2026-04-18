@@ -51,15 +51,15 @@ RESULTS_CSV_HEADER = [
     "cash_penalty_proportion", "upside_pnl_multiplier",
     "stoploss_min", "stoploss_max",
     "n_steps", "ent_coef", "learning_rate", "gamma", "episode_length",
-    "ppo_return", "ppo_max_dd",
-    "fsl_return", "fsl_max_dd",
-    "bh_return", "bh_max_dd",
+    "ppo_return", "ppo_max_dd", "ppo_sharpe", "ppo_sortino",
+    "fsl_return", "fsl_max_dd", "fsl_sharpe", "fsl_sortino",
+    "bh_return", "bh_max_dd", "bh_sharpe", "bh_sortino",
 ]
 
 PLAINTEXT_KEYS = [
-    "ppo_return", "ppo_max_dd",
-    "fsl_return", "fsl_max_dd",
-    "bh_return", "bh_max_dd",
+    "ppo_return", "ppo_max_dd", "ppo_sharpe", "ppo_sortino",
+    "fsl_return", "fsl_max_dd", "fsl_sharpe", "fsl_sortino",
+    "bh_return", "bh_max_dd", "bh_sharpe", "bh_sortino",
 ]
 
 
@@ -266,12 +266,16 @@ def build_commands(combo: dict, work_dir: str, use_local_history: bool = False, 
 def parse_plaintext_output(raw: str) -> dict:
     """Parse the comma-separated plaintext line from backtest into a dict.
 
-    Expected format: ``ppo_ret,ppo_dd,fsl_ret,fsl_dd,bh_ret,bh_dd``
+    Expected format (12 values)::
+
+        ppo_ret,ppo_dd,ppo_sharpe,ppo_sortino,
+        fsl_ret,fsl_dd,fsl_sharpe,fsl_sortino,
+        bh_ret,bh_dd,bh_sharpe,bh_sortino
     """
     parts = [p.strip() for p in raw.strip().split(",")]
-    if len(parts) != 6:
+    if len(parts) != 12:
         raise ValueError(
-            f"Expected 6 comma-separated values from --plaintext output, "
+            f"Expected 12 comma-separated values from --plaintext output, "
             f"got {len(parts)}: {raw!r}"
         )
     try:
@@ -309,8 +313,11 @@ def append_result_row(
             combo["learning_rate"], combo["gamma"],
             combo["episode_length"],
             metrics["ppo_return"], metrics["ppo_max_dd"],
+            metrics["ppo_sharpe"], metrics["ppo_sortino"],
             metrics["fsl_return"], metrics["fsl_max_dd"],
+            metrics["fsl_sharpe"], metrics["fsl_sortino"],
             metrics["bh_return"], metrics["bh_max_dd"],
+            metrics["bh_sharpe"], metrics["bh_sortino"],
         ]
         writer.writerow(row)
 
@@ -442,7 +449,7 @@ def main():
                     plaintext_line = None
                     for line in reversed(result.stdout.strip().split("\n")):
                         parts = line.strip().split(",")
-                        if len(parts) == 6:
+                        if len(parts) == 12:
                             try:
                                 [float(p) for p in parts]
                                 plaintext_line = line.strip()

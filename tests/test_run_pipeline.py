@@ -267,20 +267,26 @@ class TestParsePlaintextOutput:
     """Parse the --plaintext CSV line from backtest stdout."""
 
     def test_valid_output(self):
-        """Standard 6-value plaintext output."""
-        raw = "-0.0016,-0.0069,-0.0163,-0.0228,-0.0089,-0.0158"
+        """Standard 12-value plaintext output."""
+        raw = "-0.0016,-0.0069,0.5,-0.8,-0.0163,-0.0228,0.3,-0.6,-0.0089,-0.0158,0.4,-0.7"
         result = parse_plaintext_output(raw)
-        assert len(result) == 6
+        assert len(result) == 12
         assert result["ppo_return"] == pytest.approx(-0.0016)
         assert result["ppo_max_dd"] == pytest.approx(-0.0069)
+        assert result["ppo_sharpe"] == pytest.approx(0.5)
+        assert result["ppo_sortino"] == pytest.approx(-0.8)
         assert result["fsl_return"] == pytest.approx(-0.0163)
         assert result["fsl_max_dd"] == pytest.approx(-0.0228)
+        assert result["fsl_sharpe"] == pytest.approx(0.3)
+        assert result["fsl_sortino"] == pytest.approx(-0.6)
         assert result["bh_return"] == pytest.approx(-0.0089)
         assert result["bh_max_dd"] == pytest.approx(-0.0158)
+        assert result["bh_sharpe"] == pytest.approx(0.4)
+        assert result["bh_sortino"] == pytest.approx(-0.7)
 
     def test_strips_whitespace(self):
         """Leading/trailing whitespace and newlines are ignored."""
-        raw = "  0.05,  -0.01, 0.03, -0.02, 0.04, -0.015\n"
+        raw = "  0.05,  -0.01, 0.5, 0.8, 0.03, -0.02, 0.4, 0.7, 0.04, -0.015, 0.3, 0.6\n"
         result = parse_plaintext_output(raw)
         assert result["ppo_return"] == pytest.approx(0.05)
 
@@ -322,10 +328,16 @@ class TestResultsCsvAccumulation:
         return {
             "ppo_return": -0.0016,
             "ppo_max_dd": -0.0069,
+            "ppo_sharpe": 0.5,
+            "ppo_sortino": -0.8,
             "fsl_return": -0.0163,
             "fsl_max_dd": -0.0228,
+            "fsl_sharpe": 0.3,
+            "fsl_sortino": -0.6,
             "bh_return": -0.0089,
             "bh_max_dd": -0.0158,
+            "bh_sharpe": 0.4,
+            "bh_sortino": -0.7,
         }
 
     def test_creates_file_with_header(self):

@@ -11,6 +11,42 @@ from src.data_utils import align_ticker_timestamps
 from src.env_stocktrading import StockTradingEnv
 from src.feature_engineer import INDICATORS
 
+
+def compute_sharpe(equity_values: np.ndarray, risk_free_rate: float = 0.0) -> float:
+    """Compute the Sharpe ratio from an equity curve.
+
+    Sharpe = (mean(returns) - risk_free_rate) / std(returns)
+
+    Returns 0.0 when std is zero or there are fewer than 2 returns.
+    """
+    if len(equity_values) < 3:
+        return 0.0
+    returns = np.diff(equity_values) / equity_values[:-1]
+    std = returns.std(ddof=1)
+    if std == 0.0:
+        return 0.0
+    return float((returns.mean() - risk_free_rate) / std)
+
+
+def compute_sortino(equity_values: np.ndarray, risk_free_rate: float = 0.0) -> float:
+    """Compute the Sortino ratio from an equity curve.
+
+    Sortino = (mean(returns) - risk_free_rate) / std(negative_returns)
+
+    Returns 0.0 when there are no negative returns, std is zero,
+    or there are fewer than 2 returns.
+    """
+    if len(equity_values) < 3:
+        return 0.0
+    returns = np.diff(equity_values) / equity_values[:-1]
+    downside = returns[returns < 0]
+    if len(downside) < 2:
+        return 0.0
+    downside_std = downside.std(ddof=1)
+    if downside_std == 0.0:
+        return 0.0
+    return float((returns.mean() - risk_free_rate) / downside_std)
+
 def baseline_buy_and_hold(
     df: pd.DataFrame,
     initial_amount: float = 1_000_000,
@@ -287,13 +323,26 @@ def backtest(
     fsl_drawdowns = (fsl_values - fsl_running_max) / fsl_running_max
     fsl_max_dd = fsl_drawdowns.min() * 100
 
+    # --- Sharpe / Sortino ratios ---
+    ppo_sharpe = compute_sharpe(portfolio_values)
+    ppo_sortino = compute_sortino(portfolio_values)
+    fsl_sharpe = compute_sharpe(fsl_values)
+    fsl_sortino = compute_sortino(fsl_values)
+    bl_sharpe = compute_sharpe(bl_values)
+    bl_sortino = compute_sortino(bl_values)
+
     if plaintext:
-        # Machine-readable CSV: ppo_ret,ppo_dd,fsl_ret,fsl_dd,bh_ret,bh_dd
-        # Values as decimals (e.g. -0.16% → -0.0016)
+        # Machine-readable CSV: ppo_ret,ppo_dd,ppo_sharpe,ppo_sortino,
+        #                       fsl_ret,fsl_dd,fsl_sharpe,fsl_sortino,
+        #                       bh_ret,bh_dd,bh_sharpe,bh_sortino
+        # Returns/drawdowns as decimals; ratios as raw floats
         print(
             f"{return_pct / 100},{max_drawdown / 100},"
+            f"{ppo_sharpe},{ppo_sortino},"
             f"{fsl_return / 100},{fsl_max_dd / 100},"
-            f"{bl_return / 100},{bl_max_dd / 100}"
+            f"{fsl_sharpe},{fsl_sortino},"
+            f"{bl_return / 100},{bl_max_dd / 100},"
+            f"{bl_sharpe},{bl_sortino}"
         )
     else:
         print("\n--- Backtest Results ---")
@@ -303,16 +352,22 @@ def backtest(
         print(f"  Final Portfolio Value:  {final_value:.2f}")
         print(f"  Total Return:           {return_pct:.2f}%")
         print(f"  Max Drawdown:           {max_drawdown:.2f}%")
+        print(f"  Sharpe Ratio:           {ppo_sharpe:.4f}")
+        print(f"  Sortino Ratio:          {ppo_sortino:.4f}")
         print("")
         print(f"  PPO + Fixed SL ({fixed_stoploss_ratio:.0%})")
         print(f"  Final Portfolio Value:  {fsl_final:.2f}")
         print(f"  Total Return:           {fsl_return:.2f}%")
         print(f"  Max Drawdown:           {fsl_max_dd:.2f}%")
+        print(f"  Sharpe Ratio:           {fsl_sharpe:.4f}")
+        print(f"  Sortino Ratio:          {fsl_sortino:.4f}")
         print("")
         print("  Buy & Hold Baseline")
         print(f"  Final Portfolio Value:  {bl_final:.2f}")
         print(f"  Total Return:           {bl_return:.2f}%")
         print(f"  Max Drawdown:           {bl_max_dd:.2f}%")
+        print(f"  Sharpe Ratio:           {bl_sharpe:.4f}")
+        print(f"  Sortino Ratio:          {bl_sortino:.4f}")
     
     model_name = os.path.basename(model_path)
     df_account_value.to_csv(os.path.join(results_dir, f"{model_name}_account_history.csv"), index=False)
