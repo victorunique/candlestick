@@ -19,7 +19,8 @@ All components have been rewritten following Test-Driven Development (TDD) princ
 │   ├── backtest.py                   # Tests the agent on unseen data
 │   ├── run_pipeline.py               # Hyperparameter tuning pipeline (grid search)
 │   ├── plot_backtest.py              # Visualizes portfolio value, drawdown, and buy/sell actions
-│   └── generate_report.py            # Generates a static HTML report with dataset info and graphs
+│   ├── generate_report.py            # Generates a static HTML report with dataset info and graphs
+│   └── analyse_pareto.py             # Pareto front analysis and Sharpe/Sortino cross-strategy comparison
 ├── tests                             # Pytest unit tests for every component
 │   ├── test_data_fetcher.py
 │   ├── test_history_collector.py
@@ -30,7 +31,8 @@ All components have been rewritten following Test-Driven Development (TDD) princ
 │   ├── test_backtest.py
 │   ├── test_run_pipeline.py
 │   ├── test_plot_backtest.py
-│   └── test_generate_report.py
+│   ├── test_generate_report.py
+│   └── test_analyse_pareto.py
 ```
 
 ## Setup & Running Tests
@@ -206,6 +208,26 @@ bh_return,bh_max_dd,bh_sharpe,bh_sortino
 ```
 
 Each combo runs in an isolated temp directory that is cleaned up afterwards, ensuring no state leakage between runs.
+
+### 9. Analyse Hyperparameter Results (Pareto Front)
+
+After accumulating results from the hyperparameter pipeline, use `analyse_pareto` to visualise the return–drawdown Pareto front and compare Sharpe/Sortino ratios across the three strategies (PPO, Fixed-SL, Buy-and-Hold).
+
+```bash
+uv run python -m src.analyse_pareto --input hparam_results.csv
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `--input` | `hparam_results.csv` | Path to the pipeline results CSV |
+| `--output` | `pareto_front.png` | Output path for the Pareto front plot |
+| `--output-metrics` | `metrics_comparison.png` | Output path for the Sharpe/Sortino comparison chart |
+
+The tool:
+1. Aggregates results by `reward_weight_drawdown` across all tickers and rolling windows.
+2. Computes and plots the **Pareto front** (average return vs average max drawdown).
+3. Generates a **grouped bar chart** comparing average Sharpe and Sortino ratios for PPO, Fixed-SL, and Buy-and-Hold at each weight setting.
+4. Prints a summary table with all metrics and a cross-strategy comparison to stdout.
 
 ## Continuous 1-Minute Data Collection
 
