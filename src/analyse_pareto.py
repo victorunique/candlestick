@@ -189,69 +189,83 @@ def plot_pareto(agg: pd.DataFrame, output_path: str) -> None:
     plt.close(fig)
 
 
-def plot_metrics_comparison(agg: pd.DataFrame, output_path: str) -> None:
-    """Generate a 2-panel grouped bar chart comparing Sharpe and Sortino
+def plot_sharpe_comparison(agg: pd.DataFrame, output_path: str) -> None:
+    """Generate a grouped bar chart comparing Sharpe ratios
     across PPO, Fixed-SL, and Buy-and-Hold strategies by weight.
     """
     weights = agg["reward_weight_drawdown"].values
     x = np.arange(len(weights))
     bar_width = 0.25
 
-    fig, axes = plt.subplots(1, 2, figsize=(16, 7), sharey=False)
-
-    # --- Panel 1: Sharpe Ratio ---
-    ax1 = axes[0]
-    ax1.bar(
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.bar(
         x - bar_width, agg["avg_ppo_sharpe"].values,
         bar_width, label="PPO", color="#3b82f6", edgecolor="white",
     )
-    ax1.bar(
+    ax.bar(
         x, agg["avg_fsl_sharpe"].values,
         bar_width, label="Fixed SL", color="#f97316", edgecolor="white",
     )
-    ax1.bar(
+    ax.bar(
         x + bar_width, agg["avg_bh_sharpe"].values,
         bar_width, label="Buy & Hold", color="#22c55e", edgecolor="white",
     )
-    ax1.set_xlabel("reward_weight_drawdown", fontsize=12)
-    ax1.set_ylabel("Average Sharpe Ratio", fontsize=12)
-    ax1.set_title("Sharpe Ratio by Strategy & Weight", fontsize=13, fontweight="bold")
-    ax1.set_xticks(x)
-    ax1.set_xticklabels([f"{w:.2f}" for w in weights], fontsize=9)
-    ax1.legend(fontsize=10)
-    ax1.grid(True, alpha=0.3, axis="y")
-    ax1.axhline(y=0, color="grey", linewidth=0.8, linestyle="-")
+    ax.set_xlabel("reward_weight_drawdown", fontsize=12)
+    ax.set_ylabel("Average Sharpe Ratio", fontsize=12)
+    ax.set_title(
+        "Sharpe Ratio by Strategy & Weight\n"
+        "PPO vs Fixed-SL vs Buy-and-Hold",
+        fontsize=14, fontweight="bold",
+    )
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{w:.2f}" for w in weights], fontsize=9)
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3, axis="y")
+    ax.axhline(y=0, color="grey", linewidth=0.8, linestyle="-")
 
-    # --- Panel 2: Sortino Ratio ---
-    ax2 = axes[1]
-    ax2.bar(
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    print(f"Sharpe comparison saved to: {output_path}")
+    plt.close(fig)
+
+
+def plot_sortino_comparison(agg: pd.DataFrame, output_path: str) -> None:
+    """Generate a grouped bar chart comparing Sortino ratios
+    across PPO, Fixed-SL, and Buy-and-Hold strategies by weight.
+    """
+    weights = agg["reward_weight_drawdown"].values
+    x = np.arange(len(weights))
+    bar_width = 0.25
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.bar(
         x - bar_width, agg["avg_ppo_sortino"].values,
         bar_width, label="PPO", color="#3b82f6", edgecolor="white",
     )
-    ax2.bar(
+    ax.bar(
         x, agg["avg_fsl_sortino"].values,
         bar_width, label="Fixed SL", color="#f97316", edgecolor="white",
     )
-    ax2.bar(
+    ax.bar(
         x + bar_width, agg["avg_bh_sortino"].values,
         bar_width, label="Buy & Hold", color="#22c55e", edgecolor="white",
     )
-    ax2.set_xlabel("reward_weight_drawdown", fontsize=12)
-    ax2.set_ylabel("Average Sortino Ratio", fontsize=12)
-    ax2.set_title("Sortino Ratio by Strategy & Weight", fontsize=13, fontweight="bold")
-    ax2.set_xticks(x)
-    ax2.set_xticklabels([f"{w:.2f}" for w in weights], fontsize=9)
-    ax2.legend(fontsize=10)
-    ax2.grid(True, alpha=0.3, axis="y")
-    ax2.axhline(y=0, color="grey", linewidth=0.8, linestyle="-")
-
-    fig.suptitle(
-        "Risk-Adjusted Return Metrics: PPO vs Fixed-SL vs Buy-and-Hold",
-        fontsize=15, fontweight="bold", y=1.02,
+    ax.set_xlabel("reward_weight_drawdown", fontsize=12)
+    ax.set_ylabel("Average Sortino Ratio", fontsize=12)
+    ax.set_title(
+        "Sortino Ratio by Strategy & Weight\n"
+        "PPO vs Fixed-SL vs Buy-and-Hold",
+        fontsize=14, fontweight="bold",
     )
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{w:.2f}" for w in weights], fontsize=9)
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3, axis="y")
+    ax.axhline(y=0, color="grey", linewidth=0.8, linestyle="-")
+
     fig.tight_layout()
     fig.savefig(output_path, dpi=200, bbox_inches="tight")
-    print(f"Metrics comparison saved to: {output_path}")
+    print(f"Sortino comparison saved to: {output_path}")
     plt.close(fig)
 
 
@@ -326,8 +340,12 @@ def main():
         help="Output path for the Pareto front plot.",
     )
     parser.add_argument(
-        "--output-metrics", type=str, default="metrics_comparison.png",
-        help="Output path for the Sharpe/Sortino comparison plot.",
+        "--output-sharpe", type=str, default="sharpe_comparison.png",
+        help="Output path for the Sharpe ratio comparison plot.",
+    )
+    parser.add_argument(
+        "--output-sortino", type=str, default="sortino_comparison.png",
+        help="Output path for the Sortino ratio comparison plot.",
     )
     args = parser.parse_args()
 
@@ -345,7 +363,8 @@ def main():
 
     print_summary(agg, pf_idx)
     plot_pareto(agg, args.output)
-    plot_metrics_comparison(agg, args.output_metrics)
+    plot_sharpe_comparison(agg, args.output_sharpe)
+    plot_sortino_comparison(agg, args.output_sortino)
 
 
 if __name__ == "__main__":

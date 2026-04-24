@@ -138,10 +138,19 @@ class TestPlotPareto:
         analyse_pareto.plot_pareto(agg, output)
         assert os.path.exists(output)
 
-    def test_generates_metrics_comparison(self, sample_csv, tmp_path):
-        """plot_metrics_comparison should generate the Sharpe/Sortino chart."""
+    def test_generates_sharpe_comparison(self, sample_csv, tmp_path):
+        """plot_sharpe_comparison should generate the Sharpe chart."""
         df = analyse_pareto.load_data(sample_csv)
         agg = analyse_pareto.aggregate_by_weight(df)
-        output = str(tmp_path / "test_metrics.png")
-        analyse_pareto.plot_metrics_comparison(agg, output)
+        output = str(tmp_path / "test_sharpe.png")
+        analyse_pareto.plot_sharpe_comparison(agg, output)
         assert os.path.exists(output)
+
+    def test_generates_sortino_comparison(self, sample_csv, tmp_path):
+        """plot_sortino_comparison should generate the Sortino chart."""
+        df = analyse_pareto.load_data(sample_csv)
+        agg = analyse_pareto.aggregate_by_weight(df)
+        output = str(tmp_path / "test_sortino.png")
+        analyse_pareto.plot_sortino_comparison(agg, output)
+        assert os.path.exists(output)
+

@@ -221,12 +221,13 @@ uv run python -m src.analyse_pareto --input hparam_results.csv
 |---|---|---|
 | `--input` | `hparam_results.csv` | Path to the pipeline results CSV |
 | `--output` | `pareto_front.png` | Output path for the Pareto front plot |
-| `--output-metrics` | `metrics_comparison.png` | Output path for the Sharpe/Sortino comparison chart |
+| `--output-sharpe` | `sharpe_comparison.png` | Output path for the Sharpe ratio comparison chart |
+| `--output-sortino` | `sortino_comparison.png` | Output path for the Sortino ratio comparison chart |
 
 The tool:
 1. Aggregates results by `reward_weight_drawdown` across all tickers and rolling windows.
 2. Computes and plots the **Pareto front** (average return vs average max drawdown).
-3. Generates a **grouped bar chart** comparing average Sharpe and Sortino ratios for PPO, Fixed-SL, and Buy-and-Hold at each weight setting.
+3. Generates separate **grouped bar charts** comparing average Sharpe and Sortino ratios for PPO, Fixed-SL, and Buy-and-Hold at each weight setting.
 4. Prints a summary table with all metrics and a cross-strategy comparison to stdout.
 
 ## Continuous 1-Minute Data Collection
