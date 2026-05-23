@@ -20,7 +20,8 @@ All components have been rewritten following Test-Driven Development (TDD) princ
 │   ├── run_pipeline.py               # Hyperparameter tuning pipeline (grid search)
 │   ├── plot_backtest.py              # Visualizes portfolio value, drawdown, and buy/sell actions
 │   ├── generate_report.py            # Generates a static HTML report with dataset info and graphs
-│   └── analyse_pareto.py             # Pareto front analysis and Sharpe/Sortino cross-strategy comparison
+│   ├── analyse_pareto.py             # Pareto front analysis and Sharpe/Sortino cross-strategy comparison
+│   └── wilcoxon_test.py              # Wilcoxon signed-rank tests for statistical significance
 ├── tests                             # Pytest unit tests for every component
 │   ├── test_data_fetcher.py
 │   ├── test_history_collector.py
@@ -32,7 +33,8 @@ All components have been rewritten following Test-Driven Development (TDD) princ
 │   ├── test_run_pipeline.py
 │   ├── test_plot_backtest.py
 │   ├── test_generate_report.py
-│   └── test_analyse_pareto.py
+│   ├── test_analyse_pareto.py
+│   └── test_wilcoxon_test.py
 ```
 
 ## Setup & Running Tests
@@ -229,6 +231,28 @@ The tool:
 2. Computes and plots the **Pareto front** (average return vs average max drawdown).
 3. Generates separate **grouped bar charts** comparing average Sharpe and Sortino ratios for PPO, Fixed-SL, and Buy-and-Hold at each weight setting.
 4. Prints a summary table with all metrics and a cross-strategy comparison to stdout.
+
+### 10. Statistical Significance Testing (Wilcoxon)
+
+To assess whether the observed outperformance of the dynamic PPO agent is statistically significant rather than attributable to random variation, use `wilcoxon_test` to run non-parametric Wilcoxon signed-rank tests on the paired out-of-sample results.
+
+The Wilcoxon test is chosen over a paired t-test because financial return distributions frequently violate normality assumptions and may exhibit skewness and heteroscedasticity.
+
+```bash
+uv run python -m src.wilcoxon_test --input hparam_results_all.csv
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `--input` | `hparam_results_all.csv` | Path to the pipeline results CSV |
+
+The tool compares paired out-of-sample performance observations between:
+- **PPO (Dynamic SL) vs. Fixed SL**
+- **PPO (Dynamic SL) vs. Buy-and-Hold**
+
+across three metrics: **Return**, **Max Drawdown**, and **Sortino ratio**.
+
+The resulting p-values indicate whether the median performance differences are statistically significant at the α = 0.05 threshold. Output is a formatted table suitable for inclusion in academic reports.
 
 ## Continuous 1-Minute Data Collection
 
