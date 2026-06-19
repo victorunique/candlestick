@@ -315,3 +315,39 @@ This ensures:
 - Output is appended to `./history/collector.log`.
 - The process is stateless — safe to restart or reschedule at any time.
 
+---
+
+## CSV to LaTeX Table Converter
+
+A utility script is provided to convert CSV data (e.g. for thesis writing) into clean, professional LaTeX tables compatible with Overleaf.
+
+### CLI Usage
+
+```bash
+uv run python -m src.csv_to_latex -i demo_data.csv -o output_table.tex [options]
+```
+
+### Options
+
+| Option | Shortcut | Type | Description |
+|---|---|---|---|
+| `--input` | `-i` | String (Required) | Path to the input CSV file. |
+| `--output` | `-o` | String | Path to save the generated LaTeX file. If not specified, prints to stdout. |
+| `--columns` | `-c` | String | Comma-separated list of columns to include and optionally rename. E.g., `date:Date,tic:Ticker,close:Close`. |
+| `--precision` | — | Integer | Decimal precision for float formatting (default: `2`). |
+| `--no-bold-headers` | — | Flag | Disable bold formatting for column headers. |
+| `--no-booktabs` | — | Flag | Disable `booktabs` package lines (toprule/midrule/bottomrule) and use standard hlines instead. |
+| `--caption` | — | String | Caption for the table. |
+| `--label` | — | String | LaTeX label for references (e.g. `tab:my_data`). |
+| `--alignment` | — | String | Column alignment string (e.g., `l|r|c`). If not provided, it is auto-detected. |
+| `--standalone` | — | Flag | Wrap the table in a standalone compileable LaTeX document. |
+
+### Example
+
+To convert `demo_data.csv` to a LaTeX table with custom headers:
+
+```bash
+uv run python -m src.csv_to_latex -i demo_data.csv -c "date:Date,tic:Ticker,open:Open,high:High,low:Low,close:Close,volume:Volume" --caption "Stock Price Data Sample" --label "tab:stock_data"
+```
+
+
