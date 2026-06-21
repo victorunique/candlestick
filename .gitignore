@@ -40,7 +40,7 @@ data_lake/
 # PyTorch & RL Models
 *.pt
 *.pth
-*.zip
+#*.zip
 ppo_trading_policy*
 
 # macOS
